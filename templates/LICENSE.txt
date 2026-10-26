@@ -1,0 +1,37 @@
+License for the templates in this directory
+===========================================
+
+All legal agreement templates in this "templates" directory are standard
+agreements published by Common Paper, Inc. (https://commonpaper.com) and are
+licensed under the Creative Commons Attribution 4.0 International License
+(CC BY 4.0).
+
+  License summary: https://creativecommons.org/licenses/by/4.0/
+  Legal code:      https://creativecommons.org/licenses/by/4.0/legalcode
+
+Under CC BY 4.0 you may copy, redistribute, adapt and build upon this material
+for any purpose, including commercially, as long as you give appropriate
+credit, provide a link to the license, and indicate if changes were made.
+
+Attribution
+-----------
+Source: Common Paper standard agreements, https://github.com/CommonPaper
+
+  File                              Source repository
+  --------------------------------  ------------------------------------------------------
+  Mutual-NDA.md                     https://github.com/CommonPaper/Mutual-NDA
+  Mutual-NDA-coverpage.md           https://github.com/CommonPaper/Mutual-NDA
+  CSA.md                            https://github.com/CommonPaper/CSA
+  sla.md                            https://github.com/CommonPaper/SLA
+  DPA.md                            https://github.com/CommonPaper/DPA
+  design-partner-agreement.md       https://github.com/CommonPaper/Design-Partner-Agreement
+  psa.md                            https://github.com/CommonPaper/PSA
+  Partnership-Agreement.md          https://github.com/CommonPaper/Partnership-Agreement
+  BAA.md                            https://github.com/CommonPaper/BAA
+  Software-License-Agreement.md     https://github.com/CommonPaper/Software-License-Agreement
+  Pilot-Agreement.md                https://github.com/CommonPaper/Pilot-Agreement
+  AI-Addendum.md                    https://github.com/CommonPaper/AI-Addendum
+
+The files were copied unmodified from the default branch of each repository.
+Documents that Prelegal generates from these templates are adaptations of the
+original material and must keep this attribution and note that changes were made.
