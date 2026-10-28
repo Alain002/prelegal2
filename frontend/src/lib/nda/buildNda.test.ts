@@ -1,66 +1,68 @@
 import { describe, expect, it } from "vitest";
+import { filledValues, tinyTemplate } from "@/test/fixtures";
 import { buildNda, formatDate, ndaFileName } from "./buildNda";
 import { defaultNdaValues } from "./defaults";
-import type { NdaTemplate, NdaValues } from "./types";
-
-const template: NdaTemplate = {
-  coverIntro: [{ kind: "text", text: "Intro" }],
-  clauses: [{ number: 1, title: "Introduction", body: [{ kind: "text", text: "Body" }] }],
-  attribution: [{ kind: "text", text: "Attribution" }],
-};
-
-const filled: NdaValues = {
-  purpose: "Exploring a partnership.",
-  effectiveDate: "2026-11-01",
-  mndaTerm: { kind: "expires", years: 2 },
-  confidentialityTerm: { kind: "years", years: 3 },
-  governingLaw: "Delaware",
-  jurisdiction: "courts located in New Castle, DE",
-  modifications: "",
-  parties: [
-    { name: "Ada Lovelace", title: "CEO", company: "Acme Inc.", noticeAddress: "ada@acme.test" },
-    { name: "Alan Turing", title: "CTO", company: "Globex, LLC", noticeAddress: "1 Main St" },
-  ],
-};
+import type { NdaValues } from "./types";
 
 const field = (values: NdaValues, heading: string) =>
-  buildNda(values, template).coverFields.find((f) => f.heading === heading)?.lines;
+  buildNda(values, tinyTemplate).coverFields.find((f) => f.heading === heading)?.lines;
 
 const row = (values: NdaValues, label: string) =>
-  buildNda(values, template).signatureRows.find((r) => r.label === label)?.values;
+  buildNda(values, tinyTemplate).signatureRows.find((r) => r.label === label)?.values;
 
 describe("formatDate", () => {
-  it("formats ISO dates without timezone drift", () => {
-    expect(formatDate("2026-01-01")).toBe("January 1, 2026");
-    expect(formatDate("2026-12-31")).toBe("December 31, 2026");
+  it.each([
+    ["2026-01-01", "January 1, 2026"],
+    ["2026-12-31", "December 31, 2026"],
+    ["2024-02-29", "February 29, 2024"],
+    ["2026-07-09", "July 9, 2026"],
+  ])("formats %s as %s without timezone drift", (iso, expected) => {
+    expect(formatDate(iso)).toBe(expected);
   });
 
-  it("returns an empty string for invalid input", () => {
-    expect(formatDate("")).toBe("");
-    expect(formatDate("not a date")).toBe("");
+  it.each(["", "not a date", "2026-1-1", "26-01-01", "2026/01/01", "2026-13-01", "2026-00-10", "2026-02-30", "2025-02-29", "2026-04-31", "2026-01-00"])("returns an empty string for %j", (input) => {
+    expect(formatDate(input)).toBe("");
   });
 });
 
 describe("buildNda", () => {
   it("fills the cover page from the form values", () => {
-    expect(field(filled, "Purpose")).toEqual(["Exploring a partnership."]);
-    expect(field(filled, "Effective Date")).toEqual(["November 1, 2026"]);
-    expect(field(filled, "MNDA Term")).toEqual(["Expires 2 years from Effective Date."]);
-    expect(field(filled, "Term of Confidentiality")?.[0]).toMatch(/^3 years from Effective Date, but in the case of trade secrets/);
-    expect(field(filled, "Governing Law & Jurisdiction")).toEqual([
+    expect(field(filledValues, "Purpose")).toEqual(["Exploring a partnership."]);
+    expect(field(filledValues, "Effective Date")).toEqual(["November 1, 2026"]);
+    expect(field(filledValues, "MNDA Term")).toEqual(["Expires 2 years from Effective Date."]);
+    expect(field(filledValues, "Term of Confidentiality")).toEqual([
+      "3 years from Effective Date, but in the case of trade secrets until Confidential Information is no longer considered a trade secret under applicable laws.",
+    ]);
+    expect(field(filledValues, "Governing Law & Jurisdiction")).toEqual([
       "Governing Law: Delaware",
       "Jurisdiction: courts located in New Castle, DE",
     ]);
-    expect(field(filled, "MNDA Modifications")).toEqual(["None."]);
+    expect(field(filledValues, "MNDA Modifications")).toEqual(["None."]);
+  });
+
+  it("lists the cover page fields in template order with their hints", () => {
+    const nda = buildNda(filledValues, tinyTemplate);
+    expect(nda.coverFields.map((f) => f.heading)).toEqual([
+      "Purpose",
+      "Effective Date",
+      "MNDA Term",
+      "Term of Confidentiality",
+      "Governing Law & Jurisdiction",
+      "MNDA Modifications",
+    ]);
+    expect(nda.coverFields.find((f) => f.heading === "Purpose")?.hint).toBe("How Confidential Information may be used");
+    expect(nda.title).toBe("Mutual Non-Disclosure Agreement");
+    expect(nda.signingStatement).toMatch(/^By signing this Cover Page/);
   });
 
   it("uses the singular for one year", () => {
     expect(field(defaultNdaValues, "MNDA Term")).toEqual(["Expires 1 year from Effective Date."]);
+    expect(field(defaultNdaValues, "Term of Confidentiality")?.[0]).toMatch(/^1 year from Effective Date/);
   });
 
   it("supports open-ended and perpetual terms", () => {
     const values: NdaValues = {
-      ...filled,
+      ...filledValues,
       mndaTerm: { kind: "untilTerminated" },
       confidentialityTerm: { kind: "perpetual" },
     };
@@ -68,8 +70,8 @@ describe("buildNda", () => {
     expect(field(values, "Term of Confidentiality")).toEqual(["In perpetuity."]);
   });
 
-  it("shows placeholders for blank fields", () => {
-    const values: NdaValues = { ...defaultNdaValues, purpose: "  " };
+  it("shows placeholders for blank or whitespace-only fields", () => {
+    const values: NdaValues = { ...defaultNdaValues, purpose: "  ", governingLaw: "\n", jurisdiction: "" };
     expect(field(values, "Purpose")).toEqual(["[Purpose]"]);
     expect(field(values, "Effective Date")).toEqual(["[Effective Date]"]);
     expect(field(values, "Governing Law & Jurisdiction")).toEqual([
@@ -78,24 +80,75 @@ describe("buildNda", () => {
     ]);
   });
 
+  it("trims surrounding whitespace but keeps inner line breaks", () => {
+    const values: NdaValues = { ...filledValues, purpose: "  Line one\nLine two  ", modifications: "\n- Change A\n- Change B\n" };
+    expect(field(values, "Purpose")).toEqual(["Line one\nLine two"]);
+    expect(field(values, "MNDA Modifications")).toEqual(["- Change A\n- Change B"]);
+  });
+
   it("fills both parties and leaves signature and date blank", () => {
-    expect(row(filled, "Print Name")).toEqual(["Ada Lovelace", "Alan Turing"]);
-    expect(row(filled, "Company")).toEqual(["Acme Inc.", "Globex, LLC"]);
-    expect(row(filled, "Notice Address")).toEqual(["ada@acme.test", "1 Main St"]);
-    expect(row(filled, "Signature")).toEqual(["", ""]);
-    expect(row(filled, "Date")).toEqual(["", ""]);
+    const nda = buildNda(filledValues, tinyTemplate);
+    expect(nda.signatureRows.map((r) => r.label)).toEqual([
+      "Signature",
+      "Print Name",
+      "Title",
+      "Company",
+      "Notice Address",
+      "Date",
+    ]);
+    expect(row(filledValues, "Print Name")).toEqual(["Ada Lovelace", "Alan Turing"]);
+    expect(row(filledValues, "Title")).toEqual(["CEO", "CTO"]);
+    expect(row(filledValues, "Company")).toEqual(["Acme Inc.", "Globex, LLC"]);
+    expect(row(filledValues, "Notice Address")).toEqual(["ada@acme.test", "1 Main St\nWilmington, DE"]);
+    expect(row(filledValues, "Signature")).toEqual(["", ""]);
+    expect(row(filledValues, "Date")).toEqual(["", ""]);
+  });
+
+  it("trims party details", () => {
+    const values: NdaValues = {
+      ...filledValues,
+      parties: [
+        { name: "  Ada  ", title: " CEO ", company: " Acme ", noticeAddress: " a@b.test " },
+        filledValues.parties[1],
+      ],
+    };
+    expect(row(values, "Print Name")?.[0]).toBe("Ada");
+    expect(row(values, "Company")?.[0]).toBe("Acme");
   });
 
   it("includes the template's standard terms unchanged", () => {
-    const nda = buildNda(filled, template);
-    expect(nda.clauses).toBe(template.clauses);
-    expect(nda.coverIntro).toBe(template.coverIntro);
+    const nda = buildNda(filledValues, tinyTemplate);
+    expect(nda.clauses).toBe(tinyTemplate.clauses);
+    expect(nda.coverIntro).toBe(tinyTemplate.coverIntro);
+    expect(nda.attribution).toBe(tinyTemplate.attribution);
+  });
+
+  it("does not modify the input values", () => {
+    const snapshot = structuredClone(filledValues);
+    buildNda(filledValues, tinyTemplate);
+    expect(filledValues).toEqual(snapshot);
   });
 });
 
 describe("ndaFileName", () => {
   it("includes sanitized company names", () => {
-    expect(ndaFileName(filled)).toBe("Mutual-NDA-Acme-Inc-Globex-LLC");
+    expect(ndaFileName(filledValues)).toBe("Mutual-NDA-Acme-Inc-Globex-LLC");
+  });
+
+  it("strips characters that are unsafe in file names", () => {
+    const values: NdaValues = {
+      ...filledValues,
+      parties: [
+        { ...filledValues.parties[0], company: '../evil/<co>:"x"' },
+        { ...filledValues.parties[1], company: "Café & Co" },
+      ],
+    };
+    expect(ndaFileName(values)).toBe("Mutual-NDA-evil-co-x-Caf-Co");
+  });
+
+  it("skips a missing company", () => {
+    const values: NdaValues = { ...filledValues, parties: [{ ...filledValues.parties[0], company: "  " }, filledValues.parties[1]] };
+    expect(ndaFileName(values)).toBe("Mutual-NDA-Globex-LLC");
   });
 
   it("falls back to a generic name", () => {

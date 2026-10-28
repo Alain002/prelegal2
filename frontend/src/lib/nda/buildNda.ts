@@ -5,12 +5,18 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-/** Formats an ISO date (yyyy-mm-dd) as "October 26, 2026" without timezone shifts. */
+/**
+ * Formats an ISO date (yyyy-mm-dd) as "October 26, 2026" without timezone shifts.
+ * Returns "" for anything that isn't a real calendar date.
+ */
 export function formatDate(iso: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!match) return "";
-  const [, year, month, day] = match;
-  return `${MONTHS[Number(month) - 1]} ${Number(day)}, ${year}`;
+  const [year, month, day] = match.slice(1).map(Number);
+  // Round-trip through UTC to reject dates such as 2026-02-30 or 2026-13-01.
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return "";
+  return `${MONTHS[month - 1]} ${day}, ${match[1]}`;
 }
 
 function years(count: number): string {
@@ -77,7 +83,7 @@ export function buildNda(values: NdaValues, template: NdaTemplate): NdaDocument 
       { label: "Print Name", values: partyValues((p) => p.name) },
       { label: "Title", values: partyValues((p) => p.title) },
       { label: "Company", values: partyValues((p) => p.company) },
-      { label: "Notice Address", hint: "Email or postal address", values: partyValues((p) => p.noticeAddress) },
+      { label: "Notice Address", hint: "Use either email or postal address", values: partyValues((p) => p.noticeAddress) },
       { label: "Date", values: blank },
     ],
     clauses: template.clauses,

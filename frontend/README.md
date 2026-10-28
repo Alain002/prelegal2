@@ -10,12 +10,16 @@ npm install
 npm run dev      # http://localhost:3000
 ```
 
-| Script          | What it does                     |
-| --------------- | -------------------------------- |
-| `npm run dev`   | Start the dev server             |
-| `npm run build` | Production build (static page)   |
-| `npm test`      | Run unit tests (Vitest)          |
-| `npm run lint`  | Lint with ESLint                 |
+| Script             | What it does                       |
+| ------------------ | ---------------------------------- |
+| `npm run dev`      | Start the dev server               |
+| `npm run build`    | Production build (static page)     |
+| `npm test`         | Unit and component tests (Vitest)  |
+| `npm run test:e2e` | End-to-end tests (Playwright)      |
+| `npm run test:all` | Lint, type-check and all tests     |
+| `npm run lint`     | Lint with ESLint                   |
+
+See [TESTING.md](TESTING.md) for what the tests cover and the manual test plan.
 
 ## How it works
 

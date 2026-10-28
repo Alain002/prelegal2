@@ -197,7 +197,7 @@ export function NdaForm({ values, onChange }: NdaFormProps) {
           </div>
           <TextField
             label="Notice address"
-            hint="Email or postal address"
+            hint="Use either email or postal address"
             rows={2}
             value={party.noticeAddress}
             onChange={(v) => setParty(index, "noticeAddress", v)}

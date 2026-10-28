@@ -71,7 +71,7 @@ export function NdaCreator({ template }: { template: NdaTemplate }) {
             {exporting ? "Preparing…" : "Download Word"}
           </button>
         </div>
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-neutral-600">
           Download PDF opens your browser&apos;s print dialog. Choose &ldquo;Save as PDF&rdquo; as the destination.
         </p>
         {error && (

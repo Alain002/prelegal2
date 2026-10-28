@@ -39,8 +39,9 @@ export function NdaPreview({ nda }: { nda: NdaDocument }) {
           <div key={field.heading} className="mb-4 break-inside-avoid">
             <h3 className="font-bold">{field.heading}</h3>
             {field.hint && <p className="text-xs italic text-neutral-500">{field.hint}</p>}
-            {field.lines.map((line) => (
-              <p key={line} className="whitespace-pre-line">
+            {field.lines.map((line, i) => (
+              // Lines can repeat (e.g. identical values), so key by position.
+              <p key={i} className="whitespace-pre-line">
                 {line}
               </p>
             ))}
