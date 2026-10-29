@@ -4,6 +4,9 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.162.0",
+    "litellm>=1.106.6",
+    "pydantic>=2.14.2",
+    "python-dotenv>=1.2.4",
     "uvicorn[standard]>=0.54.0",
 ]
 
@@ -16,3 +19,8 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+# The live test calls the real model: run it with `uv run pytest -m live`.
+addopts = "-m \"not live\""
+markers = ["live: calls the real LLM (needs OPENROUTER_API_KEY)"]
+# Noise from inside LiteLLM's own type definitions.
+filterwarnings = ["ignore:Item .summary. on TypedDict:UserWarning"]

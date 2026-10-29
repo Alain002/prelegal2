@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import Settings, get_settings
 from .db import init_db
-from .routers import health
+from .routers import chat, health
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -21,6 +21,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="Prelegal", lifespan=lifespan)
     app.include_router(health.router)
+    app.include_router(chat.router)
 
     # Unknown API paths get a JSON 404 instead of falling through to the frontend's 404 page.
     @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
