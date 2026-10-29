@@ -5,6 +5,15 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Brand colors, usable as Tailwind classes such as bg-brand-purple or text-brand-navy. */
+@theme {
+  --color-brand-yellow: #ecad0a;
+  --color-brand-blue: #209dd7;
+  --color-brand-purple: #753991;
+  --color-brand-navy: #032147;
+  --color-brand-gray: #888888;
+}
+
 body {
   color: var(--color-neutral-900);
 }

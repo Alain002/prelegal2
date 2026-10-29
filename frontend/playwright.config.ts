@@ -1,3 +1,5 @@
+import os from "node:os";
+import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = Number(process.env.E2E_PORT ?? 3100);
@@ -21,12 +23,13 @@ export default defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"], channel } },
     { name: "mobile", use: { ...devices["Pixel 7"], channel }, grep: /@mobile/ },
   ],
-  // Test the production build, the same output that gets deployed. A fresh build and
-  // server every run, so the tests never hit a stale server left on the port. Set
-  // PW_REUSE=1 to reuse a server you started yourself (faster when iterating).
+  // Test the real stack: the static production build served by the FastAPI backend (needs
+  // uv). A fresh build, server and empty database every run, so the tests never hit a stale
+  // server left on the port. Set PW_REUSE=1 to reuse a server you started yourself.
   webServer: {
-    command: `npm run build && npx next start -p ${PORT}`,
-    url: `http://localhost:${PORT}`,
+    command: `npm run build && uv run --project ../backend uvicorn app.main:app --app-dir ../backend --port ${PORT}`,
+    url: `http://localhost:${PORT}/api/health`,
+    env: { PRELEGAL_DB_PATH: path.join(os.tmpdir(), "prelegal-e2e.db") },
     timeout: 180_000,
     reuseExistingServer: process.env.PW_REUSE === "1",
   },

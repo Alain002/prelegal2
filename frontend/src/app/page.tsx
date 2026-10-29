@@ -1,21 +1,24 @@
-import { NdaCreator } from "@/components/NdaCreator";
-import { loadNdaTemplate } from "@/lib/nda/loadTemplate";
+import type { Metadata } from "next";
+import { LoginForm } from "@/components/LoginForm";
 
-// Read once at module scope: the templates are static files, so the page prerenders.
-const template = loadNdaTemplate();
+export const metadata: Metadata = {
+  title: "Sign in | Prelegal",
+};
 
-export default function Home() {
+export default function LoginPage() {
   return (
-    <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 print:p-0">
-      <header className="mb-8 print:hidden">
-        <p className="text-sm font-semibold uppercase tracking-wider text-blue-700">Prelegal</p>
-        <h1 className="mt-1 text-3xl font-bold text-neutral-900">Mutual NDA Creator</h1>
-        <p className="mt-2 max-w-2xl text-neutral-600">
-          Fill in the details below to create a Mutual Non-Disclosure Agreement based on the Common Paper
-          standard. The preview updates as you type.
-        </p>
-      </header>
-      <NdaCreator template={template} />
+    <main className="flex flex-1 items-center justify-center px-4 py-12">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 text-center">
+          <p className="text-2xl font-bold tracking-tight text-brand-navy">Prelegal</p>
+          <div aria-hidden className="mx-auto mt-2 h-1 w-12 rounded-full bg-brand-yellow" />
+          <h1 className="mt-4 text-xl font-semibold text-brand-navy">Sign in to your account</h1>
+          <p className="mt-1 text-sm text-neutral-600">Draft legal agreements from standard templates.</p>
+        </div>
+        <div className="rounded-lg bg-white p-6 shadow-sm ring-1 ring-neutral-200">
+          <LoginForm />
+        </div>
+      </div>
     </main>
   );
 }
