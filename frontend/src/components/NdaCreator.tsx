@@ -58,7 +58,7 @@ export function NdaCreator({ template }: { template: NdaTemplate }) {
           <button
             type="button"
             onClick={() => window.print()}
-            className={`${buttonClass} bg-blue-700 text-white hover:bg-blue-800`}
+            className={`${buttonClass} bg-brand-purple text-white hover:bg-brand-purple/90`}
           >
             Download PDF
           </button>

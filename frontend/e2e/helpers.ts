@@ -24,9 +24,20 @@ export { expect };
 export const preview = (page: Page) => page.getByRole("region", { name: "Agreement preview" });
 export const partyGroup = (page: Page, n: 1 | 2) => page.getByRole("group", { name: `Party ${n}` });
 
-/** Opens the app and waits until the Effective Date default has been applied. */
+export const TEST_EMAIL = "ada@acme.test";
+
+/** Fills in and submits the sign-in form, which accepts any email and password. */
+export async function signInWithForm(page: Page, email = TEST_EMAIL) {
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill("anything");
+  await page.getByRole("button", { name: "Sign in" }).click();
+}
+
+/** Signs in, opens the NDA creator and waits until the Effective Date default has been applied. */
 export async function openApp(page: Page) {
   await page.goto("/");
+  await signInWithForm(page);
+  await expect(page).toHaveURL("/nda/");
   await expect(page.getByLabel("Effective Date", { exact: true })).not.toHaveValue("");
 }
 

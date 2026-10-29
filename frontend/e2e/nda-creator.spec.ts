@@ -118,6 +118,7 @@ test.describe("Mutual NDA Creator", () => {
     await page.emulateMedia({ media: "print" });
 
     await expect(page.getByRole("button", { name: "Download PDF" })).toBeHidden();
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeHidden();
     await expect(page.getByRole("heading", { name: "Mutual NDA Creator" })).toBeHidden();
     await expect(page.getByLabel(/^Purpose/)).toBeHidden();
     await expect(preview(page).getByRole("heading", { name: "Mutual Non-Disclosure Agreement" })).toBeVisible();
@@ -146,6 +147,8 @@ test.describe("Mutual NDA Creator", () => {
     // Start from the top of the page, as a keyboard user would.
     await page.locator("body").focus();
 
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(page.getByRole("button", { name: "Download PDF" })).toBeFocused();
     await page.keyboard.press("Tab");

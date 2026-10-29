@@ -1,0 +1,16 @@
+# Keep the build context small, and never copy host builds (e.g. Windows node_modules) or secrets.
+.git
+.claude
+.env
+.env.*
+**/node_modules
+**/.next
+**/out
+**/test-results
+**/playwright-report
+**/coverage
+**/.venv
+**/__pycache__
+**/.pytest_cache
+backend/data
+**/*.db

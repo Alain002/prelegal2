@@ -1,6 +1,6 @@
-# Testing the Mutual NDA Creator
+# Testing the Prelegal frontend
 
-Run everything from the `frontend/` directory. The tests read the templates in `../templates`, so check out the whole repository.
+Run everything from the `frontend/` directory. The tests read the templates in `../templates`, so check out the whole repository. The end-to-end tests also run the backend, so they need [uv](https://docs.astral.sh/uv/). The backend's own tests are described in the [root README](../README.md#tests).
 
 | Command            | Runs                                                      |
 | ------------------ | --------------------------------------------------------- |
@@ -25,10 +25,12 @@ Run everything from the `frontend/` directory. The tests read the templates in `
   - `fixtures.ts`: the parsed real templates and sample form values.
   - `queries.ts`: shared lookups, e.g. a party's fieldset or the preview.
   - `setup.ts`: cleanup after each test.
+  - `router.ts`: a stand-in for Next's router, for components that navigate.
 - **Timezone:** Vitest runs in the `America/Los_Angeles` timezone (set in `vitest.config.mts`). Date code that wrongly uses UTC then fails on every machine, not just some.
-- **End-to-end tests** build the app and start a fresh production server on port 3100 for each run.
+- **End-to-end tests** build the static export and serve it with the FastAPI backend on port 3100, with a fresh empty database, for each run. This is the same setup as the Docker image.
   - Use `E2E_PORT` to pick another port.
-  - Set `PW_REUSE=1` to reuse a server you started yourself.
+  - Set `PW_REUSE=1` to reuse a server you started yourself. For example, test the Docker container with `PW_REUSE=1 E2E_PORT=8000 npm run test:e2e`.
+  - Most tests sign in through the sign-in form first (`openApp` in `e2e/helpers.ts`).
   - Every test also fails if the page logs a console error.
 - **Browser:**
   - Locally, the end-to-end tests use your installed Google Chrome.
@@ -36,6 +38,24 @@ Run everything from the `frontend/` directory. The tests read the templates in `
   - Set `PW_CHANNEL=chromium` to use the bundled browser locally too.
 
 ## What the automated tests cover
+
+### Fake session: `src/lib/session.test.ts`
+
+- **Sign in and out:** signing in stores the trimmed email, and signing out clears it.
+- **Stable value:** the same object is returned until the session changes, as React's `useSyncExternalStore` requires.
+- **Bad storage:** corrupt stored values and blocked storage count as signed out, without errors.
+- **Change notifications:** subscribers hear about sign in, sign out and changes made in other tabs, and stop hearing after unsubscribing.
+
+### Sign-in form: `src/components/LoginForm.test.tsx`
+
+- Any email and password sign in and go to the NDA creator.
+- Both fields are required, and the email must look like one.
+- Already signed-in users skip the form.
+
+### Guard and header: `src/components/AuthGuard.test.tsx`, `src/components/AppHeader.test.tsx`
+
+- **Guard:** signed-in users see the page. Signed-out visitors are sent to the sign-in page without seeing it, including right after signing out.
+- **Header:** it shows the product name and the signed-in email, and Sign out signs out and returns to the sign-in page.
 
 ### Template parsing: `src/lib/nda/parseTemplate.test.ts`
 
@@ -121,6 +141,18 @@ The cover page is generated in code. These tests check that its wording comes fr
 | Keeps the form state while editing other fields                      |    ✓    |                  |
 | Layout: side by side on desktop, stacked on mobile, no sideways scrolling |    ✓    |        ✓         |
 
+### End-to-end: `e2e/platform.spec.ts` (sign-in and backend)
+
+| Test                                                                 | Desktop | Mobile (Pixel 7) |
+| -------------------------------------------------------------------- | :-----: | :--------------: |
+| Signs in with any email and password and lands in the NDA creator    |    ✓    |        ✓         |
+| Requires an email and a password                                     |    ✓    |                  |
+| Sends signed-out visitors from the NDA creator to the sign-in page   |    ✓    |                  |
+| Stays signed in across reloads and skips the sign-in page            |    ✓    |                  |
+| Signs out back to the sign-in page                                   |    ✓    |                  |
+| No accessibility violations on the sign-in page                      |    ✓    |        ✓         |
+| Backend: health check, `/nda` redirects to `/nda/`, unknown pages get a 404 |    ✓    |                  |
+
 All end-to-end tests also fail on any console error.
 
 ## Manual test plan
@@ -129,7 +161,8 @@ Run these against `npm run dev` before a release. They cover what automation can
 
 | #   | Area          | Steps                                                                                                    | Expected                                                                                                                     |
 | --- | ------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| M1  | First load    | Open the app.                                                                                            | Form beside the agreement. Effective Date is today, terms are 1 year, Purpose has the default text.                          |
+| M0  | Sign in       | Open the app, sign in with any email and password, then sign out and open `/nda/` directly.              | The NDA creator opens with your email in the header. After signing out, `/nda/` sends you back to the sign-in page.          |
+| M1  | First load    | Sign in.                                                                                                 | Form beside the agreement. Effective Date is today, terms are 1 year, Purpose has the default text.                          |
 | M2  | Live preview  | Type in Governing Law, Jurisdiction, Modifications and both parties' details.                            | Each value appears in the preview as you type.                                                                               |
 | M3  | Unusual input | Enter a very long company name, `Zoë O'Brien-Müller`, `&`, `<b>x</b>`, and a two-line address.           | Long text wraps in the table, special characters display correctly, HTML shows as plain text, and the line break is kept.    |
 | M4  | Placeholders  | Clear Purpose and the Effective Date.                                                                    | The preview shows `[Purpose]` and `[Effective Date]`.                                                                        |
