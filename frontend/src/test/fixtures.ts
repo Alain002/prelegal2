@@ -21,7 +21,7 @@ export const tinyTemplate: NdaTemplate = {
   attribution: [{ kind: "link", text: "CC BY 4.0", href: "https://creativecommons.org/licenses/by/4.0/" }],
 };
 
-/** A fully completed form. */
+/** A fully completed agreement. */
 export const filledValues: NdaValues = {
   purpose: "Exploring a partnership.",
   effectiveDate: "2026-11-01",

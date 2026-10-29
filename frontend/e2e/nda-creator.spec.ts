@@ -1,84 +1,137 @@
 import { readFile } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
 import JSZip from "jszip";
-import { AGREEMENT, expect, fillForm, openApp, partyGroup, preview, test } from "./helpers";
+import {
+  AGREEMENT,
+  chatPanel,
+  conversation,
+  expect,
+  fakeAi,
+  fillByChat,
+  messageBox,
+  openApp,
+  preview,
+  say,
+  test,
+} from "./helpers";
+
+const GREETING = /Hi! I'll help you draft a Mutual Non-Disclosure Agreement/;
 
 test.describe("Mutual NDA Creator", () => {
-  test("loads with sensible defaults @mobile", async ({ page }) => {
+  test("opens with the assistant's greeting and a default agreement @mobile", async ({ page }) => {
     await openApp(page);
 
     await expect(page).toHaveTitle("Mutual NDA Creator | Prelegal");
     await expect(page.getByRole("heading", { name: "Mutual NDA Creator" })).toBeVisible();
-    await expect(page.getByLabel(/^Purpose/)).toHaveValue(
-      "Evaluating whether to enter into a business relationship with the other party.",
-    );
-
-    // Today's date, in the browser's timezone.
-    const today = await page.evaluate(() => new Date().toLocaleDateString("en-CA"));
-    await expect(page.getByLabel("Effective Date", { exact: true })).toHaveValue(today);
+    await expect(conversation(page).getByText(GREETING)).toBeVisible();
 
     const doc = preview(page);
+    await expect(
+      doc.getByText("Evaluating whether to enter into a business relationship with the other party."),
+    ).toBeVisible();
+    // Today's date, in the browser's timezone.
+    const today = await page.evaluate(() =>
+      new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+    );
+    await expect(doc.getByText(today)).toBeVisible();
     await expect(doc.getByText("Expires 1 year from Effective Date.")).toBeVisible();
     await expect(doc.getByText("Governing Law: [Governing Law]")).toBeVisible();
     await expect(doc.getByRole("listitem")).toHaveCount(11);
   });
 
-  test("fills the whole agreement from the form", async ({ page }) => {
+  test("fills in the agreement as the conversation goes", async ({ page }) => {
     await openApp(page);
-    await fillForm(page);
+    const afterFirst = {
+      ...AGREEMENT.values,
+      governingLaw: "",
+      parties: [AGREEMENT.values.parties[0], { company: "", name: "", title: "", noticeAddress: "" }],
+    } satisfies typeof AGREEMENT.values;
+    const requests = await fakeAi(
+      page,
+      { reply: "Thanks! Who is the other party?", values: afterFirst },
+      { reply: "Got it. Everything is filled in.", values: AGREEMENT.values },
+    );
     const doc = preview(page);
 
-    await expect(doc.getByText(AGREEMENT.purpose)).toBeVisible();
+    await say(page, "We are Acme Inc., represented by Ada Lovelace.", "Thanks! Who is the other party?");
+    await expect(doc.getByRole("cell", { name: "Acme Inc." })).toBeVisible();
+    await expect(doc.getByText("Governing Law: [Governing Law]")).toBeVisible();
+
+    await say(page, "Globex, LLC. Delaware law.", "Got it. Everything is filled in.");
+    await expect(doc.getByRole("cell", { name: "Globex, LLC" })).toBeVisible();
+    await expect(doc.getByText("Governing Law: Delaware")).toBeVisible();
+
+    // Each message carries the whole conversation and the agreement as it stood.
+    expect(requests[1].messages.map((m) => m.role)).toEqual(["assistant", "user", "assistant", "user"]);
+    expect(requests[1].messages.at(-1)?.content).toBe("Globex, LLC. Delaware law.");
+    expect(requests[1].values).toEqual(afterFirst);
+    await expect(messageBox(page)).toHaveValue("");
+  });
+
+  test("shows every detail the AI filled in", async ({ page }) => {
+    await openApp(page);
+    await fillByChat(page);
+    const doc = preview(page);
+    const v = AGREEMENT.values;
+
+    await expect(doc.getByText(v.purpose)).toBeVisible();
     await expect(doc.getByText(AGREEMENT.effectiveDateText)).toBeVisible();
-    await expect(doc.getByText(`Expires ${AGREEMENT.mndaYears} years from Effective Date.`)).toBeVisible();
-    await expect(doc.getByText(new RegExp(`^${AGREEMENT.confidentialityYears} years from Effective Date, but`))).toBeVisible();
-    await expect(doc.getByText(`Governing Law: ${AGREEMENT.governingLaw}`)).toBeVisible();
-    await expect(doc.getByText(`Jurisdiction: ${AGREEMENT.jurisdiction}`)).toBeVisible();
-    await expect(doc.getByText(/^Section 8 does not apply\./)).toHaveText(AGREEMENT.modifications);
+    await expect(doc.getByText("Expires 2 years from Effective Date.")).toBeVisible();
+    await expect(doc.getByText(/^5 years from Effective Date, but/)).toBeVisible();
+    await expect(doc.getByText(`Governing Law: ${v.governingLaw}`)).toBeVisible();
+    await expect(doc.getByText(`Jurisdiction: ${v.jurisdiction}`)).toBeVisible();
+    await expect(doc.getByText(/^Section 8 does not apply\./)).toHaveText(v.modifications);
 
     const table = doc.getByRole("table");
-    for (const p of AGREEMENT.parties) {
-      for (const value of [p.company, p.name, p.title, p.address]) {
+    for (const p of v.parties) {
+      for (const value of [p.company, p.name, p.title, p.noticeAddress]) {
         await expect(table.getByRole("cell", { name: value.split("\n")[0] })).toHaveText(value);
       }
     }
   });
 
-  test("switches between fixed and open-ended terms", async ({ page }) => {
+  test("shows an error when the AI is unavailable, and Try again recovers", async ({ page, consoleErrors }) => {
     await openApp(page);
-    const doc = preview(page);
+    await fakeAi(
+      page,
+      { status: 502, detail: "The AI assistant is unavailable right now. Please try again." },
+      { reply: "Thanks! Who signs for Acme?", values: AGREEMENT.values },
+    );
 
-    await page.getByLabel("Continues until terminated").check();
-    await expect(page.getByLabel("MNDA term in years")).toBeDisabled();
-    await expect(doc.getByText("Continues until terminated in accordance with the terms of the MNDA.")).toBeVisible();
+    await say(page, "We are Acme Inc.");
+    await expect(chatPanel(page).getByRole("alert")).toContainText("The AI assistant is unavailable right now.");
+    // The browser logs the failed request itself; that one is expected.
+    expect(consoleErrors).toEqual([expect.stringContaining("502")]);
+    consoleErrors.length = 0;
 
-    await page.getByLabel("In perpetuity").check();
-    await expect(doc.getByText("In perpetuity.")).toBeVisible();
-
-    await page.getByLabel(/^Expires/).check();
-    await expect(page.getByLabel("MNDA term in years")).toBeEnabled();
-    await expect(doc.getByText("Expires 1 year from Effective Date.")).toBeVisible();
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(conversation(page).getByText("Thanks! Who signs for Acme?")).toBeVisible();
+    await expect(chatPanel(page).getByRole("alert")).toHaveCount(0);
+    await expect(conversation(page).getByText("We are Acme Inc.")).toHaveCount(1);
+    await expect(preview(page).getByRole("cell", { name: "Acme Inc." })).toBeVisible();
   });
 
-  test("lets the user clear and retype the years", async ({ page }) => {
+  test("shows that the assistant is typing", async ({ page }) => {
     await openApp(page);
-    const years = page.getByLabel("MNDA term in years");
+    let answer!: () => void;
+    const answered = new Promise<void>((resolve) => (answer = resolve));
+    await page.route("**/api/chat", async (route) => {
+      await answered;
+      await route.fulfill({ json: { reply: "Done.", values: AGREEMENT.values } });
+    });
 
-    await years.clear();
-    await expect(years).toHaveValue("");
-    await years.pressSequentially("5");
-    await expect(years).toHaveValue("5");
-    await expect(preview(page).getByText("Expires 5 years from Effective Date.")).toBeVisible();
+    await say(page, "Hello");
+    await expect(page.getByRole("status")).toHaveText("Assistant is typing…");
+    await expect(page.getByRole("button", { name: "Send" })).toBeDisabled();
 
-    // Out-of-range values are not accepted.
-    await years.fill("0");
-    await years.blur();
-    await expect(years).toHaveValue("5");
+    answer();
+    await expect(conversation(page).getByText("Done.")).toBeVisible();
+    await expect(page.getByRole("status")).toHaveCount(0);
   });
 
   test("downloads a complete Word document", async ({ page }) => {
     await openApp(page);
-    await fillForm(page);
+    await fillByChat(page);
 
     const [download] = await Promise.all([
       page.waitForEvent("download"),
@@ -92,8 +145,8 @@ test.describe("Mutual NDA Creator", () => {
     for (const expected of [
       "Mutual Non-Disclosure Agreement",
       AGREEMENT.effectiveDateText,
-      `Governing Law: ${AGREEMENT.governingLaw}`,
-      ...AGREEMENT.parties.flatMap((p) => [p.company, p.name, p.address]),
+      `Governing Law: ${AGREEMENT.values.governingLaw}`,
+      ...AGREEMENT.values.parties.flatMap((p) => [p.company, p.name, p.noticeAddress]),
       "11. General. ",
     ]) {
       expect(text).toContain(expected);
@@ -114,13 +167,13 @@ test.describe("Mutual NDA Creator", () => {
 
   test("prints only the agreement, across several pages", async ({ page }) => {
     await openApp(page);
-    await fillForm(page);
+    await fillByChat(page);
     await page.emulateMedia({ media: "print" });
 
     await expect(page.getByRole("button", { name: "Download PDF" })).toBeHidden();
     await expect(page.getByRole("button", { name: "Sign out" })).toBeHidden();
     await expect(page.getByRole("heading", { name: "Mutual NDA Creator" })).toBeHidden();
-    await expect(page.getByLabel(/^Purpose/)).toBeHidden();
+    await expect(conversation(page)).toBeHidden();
     await expect(preview(page).getByRole("heading", { name: "Mutual Non-Disclosure Agreement" })).toBeVisible();
 
     // Generate the real PDF. The cover page and the Standard Terms need at least two Letter pages.
@@ -135,67 +188,59 @@ test.describe("Mutual NDA Creator", () => {
       const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
       return results.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(" ")).join(", ")})`);
     };
-    expect(await scan(), "empty form").toEqual([]);
+    expect(await scan(), "new conversation").toEqual([]);
 
-    await fillForm(page);
-    await page.getByLabel("Continues until terminated").check(); // includes the disabled years box
-    expect(await scan(), "filled form").toEqual([]);
+    await fillByChat(page);
+    expect(await scan(), "after a reply").toEqual([]);
   });
 
-  test("moves through the controls in order with the Tab key", async ({ page }) => {
+  test("moves through the controls in order with the Tab key, and Enter sends", async ({ page }) => {
     await openApp(page);
+    await fakeAi(page, { reply: "Thanks!", values: AGREEMENT.values });
     // Start from the top of the page, as a keyboard user would.
     await page.locator("body").focus();
 
-    await page.keyboard.press("Tab");
-    await expect(page.getByRole("button", { name: "Sign out" })).toBeFocused();
-    await page.keyboard.press("Tab");
-    await expect(page.getByRole("button", { name: "Download PDF" })).toBeFocused();
-    await page.keyboard.press("Tab");
-    await expect(page.getByRole("button", { name: "Download Word" })).toBeFocused();
-    await page.keyboard.press("Tab");
-    await expect(page.getByLabel(/^Purpose/)).toBeFocused();
+    for (const control of [
+      page.getByRole("button", { name: "Sign out" }),
+      page.getByRole("button", { name: "Download PDF" }),
+      page.getByRole("button", { name: "Download Word" }),
+      messageBox(page),
+    ]) {
+      await page.keyboard.press("Tab");
+      await expect(control).toBeFocused();
+    }
 
-    // Typing and tabbing between fields fills the agreement.
-    await page.getByLabel(/^Governing Law/).focus();
-    await page.keyboard.type("Texas");
+    await page.keyboard.type("We are Acme Inc.");
+    await page.keyboard.press("Shift+Enter");
+    await page.keyboard.type("Second line");
     await page.keyboard.press("Tab");
-    await expect(page.getByLabel(/^Jurisdiction/)).toBeFocused();
-    await page.keyboard.type("Austin, TX");
-    await expect(preview(page).getByText("Governing Law: Texas")).toBeVisible();
-    await expect(preview(page).getByText("Jurisdiction: Austin, TX")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send" })).toBeFocused();
 
-    // Radio options can be changed with the arrow keys.
-    await page.getByLabel(/^Expires/).focus();
-    await page.keyboard.press("ArrowDown");
-    await expect(page.getByLabel("Continues until terminated")).toBeChecked();
-  });
-
-  test("keeps the form state while editing other fields", async ({ page }) => {
-    await openApp(page);
-    await partyGroup(page, 1).getByLabel("Company").fill("Acme Inc.");
-    await page.getByLabel("Continues until terminated").check();
-    await partyGroup(page, 2).getByLabel("Company").fill("Globex");
-    await expect(partyGroup(page, 1).getByLabel("Company")).toHaveValue("Acme Inc.");
-    await expect(page.getByLabel("Continues until terminated")).toBeChecked();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Enter");
+    await expect(conversation(page).getByText("Thanks!")).toBeVisible();
+    await expect(conversation(page).getByText(/We are Acme Inc\.\s+Second line/)).toBeVisible();
+    await expect(messageBox(page)).toBeFocused();
   });
 });
 
 test.describe("layout @mobile", () => {
-  test("puts the form beside the preview on desktop and above it on mobile, without sideways scrolling", async ({
+  test("puts the chat beside the preview on desktop and above it on mobile, without sideways scrolling", async ({
     page,
     isMobile,
   }) => {
     await openApp(page);
-    const form = await page.getByRole("button", { name: "Download PDF" }).boundingBox();
+    const chat = await messageBox(page).boundingBox();
     const doc = await preview(page).boundingBox();
-    expect(form).not.toBeNull();
+    expect(chat).not.toBeNull();
     expect(doc).not.toBeNull();
 
     if (isMobile) {
-      expect(doc!.y).toBeGreaterThan(form!.y);
+      expect(doc!.y).toBeGreaterThan(chat!.y);
     } else {
-      expect(doc!.x).toBeGreaterThan(form!.x);
+      expect(doc!.x).toBeGreaterThan(chat!.x);
+      // The message box stays on screen without scrolling the page.
+      expect(chat!.y + chat!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
     }
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(0);

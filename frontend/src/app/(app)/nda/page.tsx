@@ -16,8 +16,8 @@ export default function NdaPage() {
       <header className="mb-8 print:hidden">
         <h1 className="text-3xl font-bold text-brand-navy">Mutual NDA Creator</h1>
         <p className="mt-2 max-w-2xl text-neutral-600">
-          Fill in the details below to create a Mutual Non-Disclosure Agreement based on the Common Paper
-          standard. The preview updates as you type.
+          Chat with the AI assistant to create a Mutual Non-Disclosure Agreement based on the Common Paper
+          standard. It asks about the details and fills in the agreement as you answer.
         </p>
       </header>
       <NdaCreator template={template} />

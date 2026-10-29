@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { buildNda, ndaFileName } from "@/lib/nda/buildNda";
 import { defaultNdaValues, todayIso } from "@/lib/nda/defaults";
 import type { NdaTemplate, NdaValues } from "@/lib/nda/types";
-import { NdaForm } from "./NdaForm";
+import { Chat } from "./Chat";
 import { NdaPreview } from "./NdaPreview";
 
 function downloadBlob(blob: Blob, fileName: string) {
@@ -53,7 +53,9 @@ export function NdaCreator({ template }: { template: NdaTemplate }) {
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(320px,420px)_1fr] print:block">
-      <aside className="space-y-4 print:hidden lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto lg:pr-2">
+      {/* On desktop the column fits on screen below the page headers (about 13rem), so the message
+          box is visible without scrolling; the conversation scrolls inside it. */}
+      <aside className="flex flex-col gap-4 print:hidden lg:sticky lg:top-6 lg:h-[calc(100vh-13.5rem)] lg:min-h-[24rem]">
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -79,7 +81,7 @@ export function NdaCreator({ template }: { template: NdaTemplate }) {
             {error}
           </p>
         )}
-        <NdaForm values={values} onChange={setValues} />
+        <Chat values={values} onValues={setValues} />
       </aside>
 
       <section aria-label="Agreement preview">
