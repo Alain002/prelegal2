@@ -1,0 +1,239 @@
+{
+  "documents": [
+    {
+      "id": "mutual-nda",
+      "name": "Mutual Non-Disclosure Agreement",
+      "fileName": "Mutual-NDA",
+      "description": "Two parties share confidential information with each other to evaluate or pursue a business relationship.",
+      "template": "templates/Mutual-NDA.md",
+      "parties": ["Party 1", "Party 2"],
+      "fields": [
+        { "key": "purpose", "label": "Purpose", "essential": true, "hint": "how Confidential Information may be used", "default": "Evaluating whether to enter into a business relationship with the other party." },
+        { "key": "effectiveDate", "label": "Effective Date", "kind": "date", "essential": true, "default": "today" },
+        { "key": "mndaTerm", "label": "MNDA Term", "kind": "term", "openEnded": "until terminated", "essential": true, "hint": "how long the NDA lasts: a number of years from the Effective Date, or \"until terminated\"", "default": "1" },
+        { "key": "confidentialityTerm", "label": "Term of Confidentiality", "kind": "term", "openEnded": "perpetual", "essential": true, "hint": "how long information stays confidential: a number of years from the Effective Date (trade secrets stay protected while they remain trade secrets), or \"perpetual\"; separate from the MNDA Term", "default": "1" },
+        { "key": "governingLaw", "label": "Governing Law", "essential": true, "hint": "the state whose laws govern, e.g. \"Delaware\"" },
+        { "key": "chosenCourts", "label": "Jurisdiction", "essential": true, "hint": "the courts for disputes, e.g. \"courts located in New Castle, DE\"" },
+        { "key": "modifications", "label": "MNDA Modifications", "hint": "changes to the standard terms, if any" }
+      ]
+    },
+    {
+      "id": "csa",
+      "name": "Cloud Service Agreement",
+      "fileName": "Cloud-Service-Agreement",
+      "description": "A provider sells a cloud software or SaaS product to a customer on a subscription.",
+      "template": "templates/CSA.md",
+      "parties": ["Provider", "Customer"],
+      "fields": [
+        { "key": "effectiveDate", "label": "Effective Date", "kind": "date", "essential": true, "default": "today" },
+        { "key": "product", "label": "Product", "essential": true, "hint": "the cloud service being provided" },
+        { "key": "subscriptionPeriod", "label": "Subscription Period", "essential": true, "hint": "e.g. \"12 months\"; it renews automatically unless either party gives notice" },
+        { "key": "fees", "label": "Fees", "essential": true, "hint": "what the Customer pays and how often, e.g. \"$12,000 per year, invoiced annually\"" },
+        { "key": "generalCapAmount", "label": "General Cap Amount", "essential": true, "hint": "the limit on each party's liability, e.g. \"the fees paid in the 12 months before the claim\"" },
+        { "key": "governingLaw", "label": "Governing Law", "essential": true, "hint": "e.g. \"Delaware\"" },
+        { "key": "chosenCourts", "label": "Chosen Courts", "essential": true, "hint": "e.g. \"courts located in Wilmington, Delaware\"" },
+        { "key": "technicalSupport", "label": "Technical Support", "hint": "the support the Provider gives, e.g. \"email support on business days\"" },
+        { "key": "orderDate", "label": "Order Date", "kind": "date" },
+        { "key": "nonRenewalNoticeDate", "label": "Non-Renewal Notice Date", "hint": "how much notice ends auto-renewal, e.g. \"30 days before the end of the Subscription Period\"" },
+        { "key": "providerCoveredClaims", "label": "Provider Covered Claims", "hint": "claims the Provider defends the Customer against, e.g. \"claims that the Product infringes intellectual property\"" },
+        { "key": "customerCoveredClaims", "label": "Customer Covered Claims", "hint": "claims the Customer defends the Provider against, e.g. \"claims arising from Customer Content\"" },
+        { "key": "dpa", "label": "DPA", "hint": "the Data Processing Agreement between the parties, if any" }
+      ]
+    },
+    {
+      "id": "sla",
+      "name": "Service Level Agreement",
+      "fileName": "Service-Level-Agreement",
+      "description": "Uptime and support response targets, with service credits, added to a Cloud Service Agreement.",
+      "template": "templates/sla.md",
+      "parties": ["Provider", "Customer"],
+      "fields": [
+        { "key": "effectiveDate", "label": "Effective Date", "kind": "date", "essential": true, "default": "today" },
+        { "key": "agreement", "label": "Agreement", "essential": true, "hint": "the Cloud Service Agreement this SLA belongs to, e.g. \"Cloud Service Agreement dated January 1, 2027\"" },
+        { "key": "targetUptime", "label": "Target Uptime", "essential": true, "hint": "e.g. \"99.9% per month\"" },
+        { "key": "uptimeCredit", "label": "Uptime Credit", "essential": true, "hint": "the credit when uptime is missed, e.g. \"5% of monthly fees\"" },
+        { "key": "targetResponseTime", "label": "Target Response Time", "essential": true, "hint": "e.g. \"4 business hours\"" },
+        { "key": "responseTimeCredit", "label": "Response Time Credit", "hint": "the credit when the response time is missed, e.g. \"2% of monthly fees\"" },
+        { "key": "supportChannel", "label": "Support Channel", "essential": true, "hint": "how support requests are made, e.g. \"support@provider.com\"" },
+        { "key": "scheduledDowntime", "label": "Scheduled Downtime", "hint": "planned maintenance windows, e.g. \"Sundays 2-4am UTC with 48 hours' notice\"" },
+        { "key": "subscriptionPeriod", "label": "Subscription Period", "hint": "e.g. \"12 months\"" }
+      ]
+    },
+    {
+      "id": "dpa",
+      "name": "Data Processing Agreement",
+      "fileName": "Data-Processing-Agreement",
+      "description": "How a provider processes a customer's personal data under data protection laws such as the GDPR.",
+      "template": "templates/DPA.md",
+      "parties": ["Provider", "Customer"],
+      "fields": [
+        { "key": "effectiveDate", "label": "Effective Date", "kind": "date", "essential": true, "default": "today" },
+        { "key": "agreement", "label": "Agreement", "essential": true, "hint": "the main agreement this DPA supplements, e.g. \"Cloud Service Agreement dated January 1, 2027\"" },
+        { "key": "natureAndPurposeOfProcessing", "label": "Nature and Purpose of Processing", "essential": true, "hint": "e.g. \"hosting and support of the Product\"" },
+        { "key": "categoriesOfPersonalData", "label": "Categories of Personal Data", "essential": true, "hint": "e.g. \"names, email addresses, usage data\"" },
+        { "key": "categoriesOfDataSubjects", "label": "Categories of Data Subjects", "essential": true, "hint": "e.g. \"Customer's employees and end users\"" },
+        { "key": "durationOfProcessing", "label": "Duration of Processing", "essential": true, "hint": "e.g. \"for the term of the Agreement\"" },
+        { "key": "providerSecurityContact", "label": "Provider Security Contact", "essential": true, "hint": "e.g. \"security@provider.com\"" },
+        { "key": "frequencyOfTransfer", "label": "Frequency of Transfer", "hint": "e.g. \"continuous\"" },
+        { "key": "specialCategoryData", "label": "Special Category Data", "hint": "sensitive data such as health data, if any" },
+        { "key": "specialCategoryDataRestrictionsOrSafeguards", "label": "Special Category Data Restrictions or Safeguards" },
+        { "key": "approvedSubprocessors", "label": "Approved Subprocessors", "hint": "e.g. \"Amazon Web Services (USA, hosting)\"" },
+        { "key": "governingMemberState", "label": "Governing Member State", "hint": "the EU member state whose law governs the EU Standard Contractual Clauses, e.g. \"Ireland\"" },
+        { "key": "securityPolicy", "label": "Security Policy", "hint": "the Provider's security policy, e.g. a link to it" }
+      ]
+    },
+    {
+      "id": "design-partner",
+      "name": "Design Partner Agreement",
+      "fileName": "Design-Partner-Agreement",
+      "description": "An early partner gets access to a product in development in exchange for feedback.",
+      "template": "templates/design-partner-agreement.md",
+      "parties": ["Provider", "Partner"],
+      "fields": [
+        { "key": "effectiveDate", "label": "Effective Date", "kind": "date", "essential": true, "default": "today" },
+        { "key": "product", "label": "Product", "essential": true, "hint": "the product or service the Partner gets to use" },
+        { "key": "program", "label": "Program", "essential": true, "hint": "what the design partner program involves, e.g. \"monthly feedback sessions\"" },
+        { "key": "term", "label": "Term", "essential": true, "hint": "how long the agreement lasts, e.g. \"6 months\"" },
+        { "key": "governingLaw", "label": "Governing Law", "essential": true, "hint": "e.g. \"Delaware\"" },
+        { "key": "chosenCourts", "label": "Chosen Courts", "essential": true, "hint": "e.g. \"courts located in Wilmington, Delaware\"" },
+        { "key": "fees", "label": "Fees", "hint": "what the Partner pays, if anything" }
+      ]
+    },
+    {
+      "id": "psa",
+      "name": "Professional Services Agreement",
+      "fileName": "Professional-Services-Agreement",
+      "description": "A provider performs services and delivers work for a customer under statements of work (SOWs).",
+      "template": "templates/psa.md",
+      "parties": ["Provider", "Customer"],
+      "fields": [
+        { "key": "effectiveDate", "label": "Effective Date", "kind": "date", "essential": true, "default": "today" },
+        { "key": "deliverables", "label": "Deliverables", "essential": true, "hint": "the services and work the Provider delivers" },
+        { "key": "fees", "label": "Fees", "essential": true, "hint": "e.g. \"$150 per hour\" or \"$20,000 fixed fee\"" },
+        { "key": "paymentPeriod", "label": "Payment Period", "essential": true, "hint": "how long the Customer has to pay invoices, e.g. \"30 days\"" },
+        { "key": "sowTerm", "label": "SOW Term", "essential": true, "hint": "how long the statement of work lasts, e.g. \"3 months\"" },
+        { "key": "generalCapAmount", "label": "General Cap Amount", "essential": true, "hint": "the limit on each party's liability, e.g. \"the fees paid in the 12 months before the claim\"" },
+        { "key": "governingLaw", "label": "Governing Law", "essential": true, "hint": "e.g. \"Delaware\"" },
+        { "key": "chosenCourts", "label": "Chosen Courts", "essential": true, "hint": "e.g. \"courts located in Wilmington, Delaware\"" },
+        { "key": "customerObligations", "label": "Customer Obligations", "hint": "what the Customer must provide, e.g. \"access to its staging environment\"" },
+        { "key": "rejectionPeriod", "label": "Rejection Period", "hint": "how long the Customer has to reject a Deliverable, e.g. \"10 business days\"" },
+        { "key": "resubmissionPeriod", "label": "Resubmission Period", "hint": "how long the Provider has to fix a rejected Deliverable, e.g. \"10 business days\"" },
+        { "key": "timeOfAssignment", "label": "Time of Assignment", "hint": "when ownership of Deliverables passes to the Customer, e.g. \"on payment in full\"" },
+        { "key": "customerPolicies", "label": "Customer Policies", "hint": "Customer policies the Provider must follow" },
+        { "key": "securityPolicy", "label": "Security Policy" },
+        { "key": "insuranceMinimums", "label": "Insurance Minimums", "hint": "e.g. \"$1,000,000 general liability\"" },
+        { "key": "additionalWarranties", "label": "Additional Warranties" },
+        { "key": "increasedClaims", "label": "Increased Claims", "hint": "claims subject to the higher cap" },
+        { "key": "increasedCapAmount", "label": "Increased Cap Amount" },
+        { "key": "unlimitedClaims", "label": "Unlimited Claims", "hint": "claims with no liability cap" },
+        { "key": "providerCoveredClaims", "label": "Provider Covered Claims", "hint": "claims the Provider defends the Customer against" },
+        { "key": "customerCoveredClaims", "label": "Customer Covered Claims", "hint": "claims the Customer defends the Provider against" },
+        { "key": "dpa", "label": "DPA", "hint": "the Data Processing Agreement between the parties, if any" }
+      ]
+    },
+    {
+      "id": "partnership",
+      "name": "Partnership Agreement",
+      "fileName": "Partnership-Agreement",
+      "description": "Two businesses partner, each performing agreed obligations, with terms for payment and trademark licensing.",
+      "template": "templates/Partnership-Agreement.md",
+      "parties": ["Company", "Partner"],
+      "fields": [
+        { "key": "effectiveDate", "label": "Effective Date", "kind": "date", "essential": true, "default": "today" },
+        { "key": "obligations", "label": "Obligations", "essential": true, "hint": "what each party will do in the partnership" },
+        { "key": "territory", "label": "Territory", "essential": true, "hint": "where the partnership applies, e.g. \"United States\"" },
+        { "key": "endDate", "label": "End Date", "essential": true, "hint": "when the partnership ends, e.g. \"December 31, 2027\"" },
+        { "key": "generalCapAmount", "label": "General Cap Amount", "essential": true, "hint": "the limit on each party's liability" },
+        { "key": "governingLaw", "label": "Governing Law", "essential": true, "hint": "e.g. \"Delaware\"" },
+        { "key": "chosenCourts", "label": "Chosen Courts", "essential": true, "hint": "e.g. \"courts located in Wilmington, Delaware\"" },
+        { "key": "paymentSchedule", "label": "Payment Schedule", "hint": "when payments are made, if the obligations include payment" },
+        { "key": "paymentProcess", "label": "Payment Process", "hint": "how payments are made, e.g. \"invoice, paid within 30 days\"" },
+        { "key": "brandGuidelines", "label": "Brand Guidelines", "hint": "rules for using each other's trademarks, e.g. a link" },
+        { "key": "additionalWarranties", "label": "Additional Warranties" },
+        { "key": "increasedClaims", "label": "Increased Claims", "hint": "claims subject to the higher cap" },
+        { "key": "increasedCapAmount", "label": "Increased Cap Amount" },
+        { "key": "unlimitedClaims", "label": "Unlimited Claims", "hint": "claims with no liability cap" },
+        { "key": "companyCoveredClaims", "label": "Company Covered Claims", "hint": "claims the Company defends the Partner against" },
+        { "key": "partnerCoveredClaims", "label": "Partner Covered Claims", "hint": "claims the Partner defends the Company against" },
+        { "key": "dpa", "label": "DPA", "hint": "the Data Processing Agreement between the parties, if any" }
+      ]
+    },
+    {
+      "id": "baa",
+      "name": "Business Associate Agreement",
+      "fileName": "Business-Associate-Agreement",
+      "description": "How a provider (business associate) uses and protects protected health information (PHI) under HIPAA.",
+      "template": "templates/BAA.md",
+      "parties": ["Provider", "Company"],
+      "fields": [
+        { "key": "effectiveDate", "label": "BAA Effective Date", "kind": "date", "essential": true, "default": "today" },
+        { "key": "agreement", "label": "Agreement", "essential": true, "hint": "the services agreement this BAA supplements, e.g. \"Cloud Service Agreement dated January 1, 2027\"" },
+        { "key": "breachNotificationPeriod", "label": "Breach Notification Period", "essential": true, "hint": "how fast the Provider reports a breach, e.g. \"5 business days\"" },
+        { "key": "limitations", "label": "Limitations", "hint": "limits on offshoring, de-identification or data aggregation, if any" }
+      ]
+    },
+    {
+      "id": "software-license",
+      "name": "Software License Agreement",
+      "fileName": "Software-License-Agreement",
+      "description": "A provider licenses software that the customer installs and runs itself.",
+      "template": "templates/Software-License-Agreement.md",
+      "parties": ["Provider", "Customer"],
+      "fields": [
+        { "key": "effectiveDate", "label": "Effective Date", "kind": "date", "essential": true, "default": "today" },
+        { "key": "software", "label": "Software", "essential": true, "hint": "the software being licensed" },
+        { "key": "permittedUses", "label": "Permitted Uses", "essential": true, "hint": "what the Customer may use the software for, e.g. \"internal business purposes\"" },
+        { "key": "subscriptionPeriod", "label": "Subscription Period", "essential": true, "hint": "e.g. \"12 months\"; it renews automatically unless either party gives notice" },
+        { "key": "fees", "label": "Fees", "essential": true, "hint": "e.g. \"$5,000 per year\"" },
+        { "key": "generalCapAmount", "label": "General Cap Amount", "essential": true, "hint": "the limit on each party's liability" },
+        { "key": "governingLaw", "label": "Governing Law", "essential": true, "hint": "e.g. \"Delaware\"" },
+        { "key": "chosenCourts", "label": "Chosen Courts", "essential": true, "hint": "e.g. \"courts located in Wilmington, Delaware\"" },
+        { "key": "licenseLimits", "label": "License Limits", "hint": "e.g. \"up to 50 users\"" },
+        { "key": "paymentProcess", "label": "Payment Process", "hint": "e.g. \"invoiced annually, due in 30 days\" or \"automatic card payment\"" },
+        { "key": "orderDate", "label": "Order Date", "kind": "date" },
+        { "key": "nonRenewalNoticeDate", "label": "Non-Renewal Notice Date", "hint": "how much notice ends auto-renewal" },
+        { "key": "warrantyPeriod", "label": "Warranty Period", "hint": "e.g. \"90 days\"" },
+        { "key": "deletionProcedure", "label": "Deletion Procedure", "hint": "how the Customer removes the software at the end" },
+        { "key": "additionalWarranties", "label": "Additional Warranties" },
+        { "key": "increasedClaims", "label": "Increased Claims", "hint": "claims subject to the higher cap" },
+        { "key": "increasedCapAmount", "label": "Increased Cap Amount" },
+        { "key": "unlimitedClaims", "label": "Unlimited Claims", "hint": "claims with no liability cap" },
+        { "key": "providerCoveredClaims", "label": "Provider Covered Claims", "hint": "claims the Provider defends the Customer against" },
+        { "key": "customerCoveredClaims", "label": "Customer Covered Claims", "hint": "claims the Customer defends the Provider against" }
+      ]
+    },
+    {
+      "id": "pilot",
+      "name": "Pilot Agreement",
+      "fileName": "Pilot-Agreement",
+      "description": "A short trial that lets a prospective customer evaluate a product before a longer-term deal.",
+      "template": "templates/Pilot-Agreement.md",
+      "parties": ["Provider", "Customer"],
+      "fields": [
+        { "key": "effectiveDate", "label": "Effective Date", "kind": "date", "essential": true, "default": "today" },
+        { "key": "product", "label": "Product", "essential": true, "hint": "the product being trialled" },
+        { "key": "pilotPeriod", "label": "Pilot Period", "essential": true, "hint": "how long the pilot lasts, e.g. \"90 days\"" },
+        { "key": "generalCapAmount", "label": "General Cap Amount", "essential": true, "hint": "the limit on each party's liability, e.g. \"$10,000\"" },
+        { "key": "governingLaw", "label": "Governing Law", "essential": true, "hint": "e.g. \"Delaware\"" },
+        { "key": "chosenCourts", "label": "Chosen Courts", "essential": true, "hint": "e.g. \"courts located in Wilmington, Delaware\"" },
+        { "key": "fees", "label": "Fees", "hint": "what the Customer pays for the pilot, if anything" }
+      ]
+    },
+    {
+      "id": "ai-addendum",
+      "name": "AI Addendum",
+      "fileName": "AI-Addendum",
+      "description": "Adds terms for AI features to a main agreement: use of inputs and outputs, and model training.",
+      "template": "templates/AI-Addendum.md",
+      "parties": ["Provider", "Customer"],
+      "fields": [
+        { "key": "effectiveDate", "label": "Effective Date", "kind": "date", "essential": true, "default": "today" },
+        { "key": "agreement", "label": "Agreement", "essential": true, "hint": "the main agreement this addendum supplements, e.g. \"Cloud Service Agreement dated January 1, 2027\"" },
+        { "key": "trainingData", "label": "Training Data", "hint": "Customer data the Provider may train models on; if none is given, no training is allowed" },
+        { "key": "trainingPurposes", "label": "Training Purposes", "hint": "what that training may be for" },
+        { "key": "trainingRestrictions", "label": "Training Restrictions" },
+        { "key": "improvementRestrictions", "label": "Improvement Restrictions", "hint": "limits on using data to improve the product without training" }
+      ]
+    }
+  ]
+}

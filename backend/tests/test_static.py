@@ -9,15 +9,15 @@ def test_root_serves_the_login_page(client: TestClient) -> None:
 
 
 def test_page_routes_serve_their_index_html(client: TestClient) -> None:
-    response = client.get("/nda/")
+    response = client.get("/draft/")
     assert response.status_code == 200
-    assert response.text == "<h1>nda</h1>"
+    assert response.text == "<h1>draft</h1>"
 
 
 def test_page_without_trailing_slash_redirects(client: TestClient) -> None:
-    response = client.get("/nda", follow_redirects=False)
+    response = client.get("/draft", follow_redirects=False)
     assert response.status_code in (307, 308)
-    assert response.headers["location"].endswith("/nda/")
+    assert response.headers["location"].endswith("/draft/")
 
 
 def test_serves_assets(client: TestClient) -> None:

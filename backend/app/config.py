@@ -17,10 +17,13 @@ load_dotenv(BACKEND_DIR.parent / ".env", override=False)
 class Settings:
     db_path: Path
     static_dir: Path
+    # The documents Prelegal can draft, shared with the frontend. Read once, when the app loads.
+    documents_path: Path = BACKEND_DIR.parent / "documents.json"
 
 
 def get_settings() -> Settings:
     return Settings(
         db_path=Path(os.environ.get("PRELEGAL_DB_PATH", BACKEND_DIR / "data" / "prelegal.db")),
         static_dir=Path(os.environ.get("PRELEGAL_STATIC_DIR", BACKEND_DIR.parent / "frontend" / "out")),
+        documents_path=Path(os.environ.get("PRELEGAL_DOCUMENTS_PATH", BACKEND_DIR.parent / "documents.json")),
     )

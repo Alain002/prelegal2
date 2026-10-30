@@ -12,10 +12,10 @@ from app.main import create_app
 def static_dir(tmp_path: Path) -> Path:
     """A tiny stand-in for the exported frontend (`next build` with trailingSlash)."""
     out = tmp_path / "out"
-    (out / "nda").mkdir(parents=True)
+    (out / "draft").mkdir(parents=True)
     (out / "_next").mkdir()
     (out / "index.html").write_text("<h1>login</h1>")
-    (out / "nda" / "index.html").write_text("<h1>nda</h1>")
+    (out / "draft" / "index.html").write_text("<h1>draft</h1>")
     (out / "404.html").write_text("<h1>not found</h1>")
     (out / "_next" / "app.js").write_text("console.log('hi')")
     return out

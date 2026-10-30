@@ -7,7 +7,8 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
-from ..documents.nda import NdaTurn, NdaValues, apply_patch, build_messages
+from ..documents.assistant import Turn, build_messages, compose_reply
+from ..documents.drafts import Draft, apply_turn
 from ..llm import Llm, LlmError, get_llm
 
 logger = logging.getLogger(__name__)
@@ -28,10 +29,12 @@ class ChatMessage(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    """The whole conversation so far (the browser keeps it) and the agreement as it stands."""
+    """The whole conversation so far (the browser keeps it) and the draft as it stands."""
 
     messages: list[ChatMessage] = Field(min_length=1, max_length=MAX_MESSAGES)
-    values: NdaValues
+    draft: Draft
+    # The user's date, so "today" is right in their timezone.
+    today: date | None = None
 
     @model_validator(mode="after")
     def ends_with_the_user(self) -> "ChatRequest":
@@ -42,19 +45,21 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
-    values: NdaValues
+    draft: Draft
 
 
 @router.post("/chat")
 def chat(request: ChatRequest, llm: Llm = Depends(get_llm)) -> ChatResponse:
     # A plain (sync) function: FastAPI runs it in a worker thread, so the blocking LLM call
     # doesn't hold up other requests.
-    messages = build_messages(request.values, request.messages, date.today())
+    today = request.today or date.today()
+    messages = build_messages(request.draft, request.messages, today)
     try:
-        turn = llm(messages, NdaTurn)
+        turn = llm(messages, Turn)
     except LlmError:
         logger.exception("Chat turn failed")
         raise HTTPException(status_code=502, detail=UNAVAILABLE)
+    draft = apply_turn(request.draft, turn.document_id, turn.updates, today)
     # The reply comes back in the next request, so it must fit the message length limit.
-    reply = (turn.reply.strip() or NO_REPLY)[:MAX_MESSAGE_LENGTH]
-    return ChatResponse(reply=reply, values=apply_patch(request.values, turn.patch))
+    reply = (compose_reply(turn, draft) or NO_REPLY)[:MAX_MESSAGE_LENGTH]
+    return ChatResponse(reply=reply, draft=draft)
