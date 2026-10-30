@@ -1,15 +1,25 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import type { ChatMessage } from "@/lib/chat/api";
 import { useChat } from "@/lib/chat/useChat";
 import type { Draft } from "@/lib/documents/types";
+import { Alert, Button, cx, inputClass } from "./ui";
 
 // Matches the backend's limit on one message (MAX_MESSAGE_LENGTH in backend/app/routers/chat.py).
 const MAX_LENGTH = 4000;
 
-/** The AI chat that chooses the document and fills it in. */
-export function Chat({ draft, onDraft }: { draft: Draft; onDraft: (draft: Draft) => void }) {
-  const { messages, pending, error, send, retry } = useChat(draft, onDraft);
+/** The AI chat that chooses the document and fills it in. `initialMessages` resumes a saved chat. */
+export function Chat({
+  draft,
+  onTurn,
+  initialMessages,
+}: {
+  draft: Draft;
+  onTurn: (draft: Draft, messages: ChatMessage[]) => void;
+  initialMessages?: ChatMessage[];
+}) {
+  const { messages, pending, error, send, retry } = useChat(draft, onTurn, initialMessages);
   const [text, setText] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -64,12 +74,9 @@ export function Chat({ draft, onDraft }: { draft: Draft; onDraft: (draft: Draft)
       )}
 
       {error && (
-        <div role="alert" className="mx-4 mb-2 flex items-center justify-between gap-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
-          <span>{error}</span>
-          <button type="button" onClick={retry} className="shrink-0 font-semibold underline">
-            Try again
-          </button>
-        </div>
+        <Alert action={{ label: "Try again", onClick: retry }} className="mx-4 mb-2">
+          {error}
+        </Alert>
       )}
 
       <form onSubmit={handleSubmit} className="flex items-end gap-2 border-t border-neutral-200 p-3">
@@ -84,15 +91,11 @@ export function Chat({ draft, onDraft }: { draft: Draft; onDraft: (draft: Draft)
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type your answer…"
-          className="min-h-[2.75rem] flex-1 resize-none rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-500 focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/40"
+          className={cx("min-h-[2.75rem] flex-1 resize-none text-sm", inputClass)}
         />
-        <button
-          type="submit"
-          disabled={pending || !text.trim()}
-          className="rounded-md bg-brand-purple px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-purple/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        <Button type="submit" disabled={pending || !text.trim()}>
           Send
-        </button>
+        </Button>
       </form>
     </section>
   );

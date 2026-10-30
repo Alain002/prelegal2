@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
+import { DISCLAIMER, DISCLAIMER_HEADING, DISCLAIMER_SHORT } from "@/lib/disclaimer";
 import { filledValues, realTemplate } from "@/test/fixtures";
 import { buildNda } from "./buildNda";
 import { toDocx } from "./toDocx";
@@ -121,5 +122,17 @@ describe("toDocx", () => {
     expect(cover).toContain("PARTY 1");
     expect(cover).not.toContain("1. Introduction.");
     expect(terms).toMatch(/^Standard Terms1\. Introduction\./);
+  });
+
+  it("marks the document as a draft subject to legal review, on every page", async () => {
+    const { zip, xml } = await generate();
+    const body = textOf(xml);
+    expect(body.indexOf(DISCLAIMER_HEADING.toUpperCase())).toBeLessThan(body.indexOf("Cover Page"));
+    expect(body).toContain(DISCLAIMER);
+    // Both sections (cover page and Standard Terms) use the footer.
+    expect(xml.match(/<w:footerReference /g)).toHaveLength(2);
+    const footers = Object.keys(zip.files).filter((name) => /^word\/footer\d+\.xml$/.test(name));
+    expect(footers.length).toBeGreaterThan(0);
+    for (const name of footers) expect(textOf(await zip.file(name)!.async("string"))).toContain(DISCLAIMER_SHORT);
   });
 });

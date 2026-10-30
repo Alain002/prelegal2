@@ -3,6 +3,7 @@ import {
   BorderStyle,
   Document,
   ExternalHyperlink,
+  Footer,
   HeadingLevel,
   Packer,
   Paragraph,
@@ -12,6 +13,7 @@ import {
   TextRun,
   WidthType,
 } from "docx";
+import { DISCLAIMER, DISCLAIMER_HEADING, DISCLAIMER_SHORT } from "@/lib/disclaimer";
 import type { CoverPage } from "@/lib/documents/types";
 import type { CoverField, Inline, SignatureRow } from "@/lib/nda/types";
 
@@ -75,18 +77,43 @@ function signatureTable(headings: string[], rows: SignatureRow[]) {
   });
 }
 
+/** The boxed "draft, subject to legal review" notice under the title. */
+function disclaimerNotice() {
+  const border = { style: BorderStyle.SINGLE, size: 6, color: "666666", space: 6 };
+  const borders = { top: border, bottom: border, left: border, right: border };
+  return [
+    new Paragraph({ border: borders, children: [new TextRun({ text: DISCLAIMER_HEADING.toUpperCase(), bold: true, size: 20 })] }),
+    new Paragraph({ border: borders, spacing: { after: 300 }, children: [new TextRun({ text: DISCLAIMER, size: 20 })] }),
+  ];
+}
+
+/** The same notice, short, at the foot of every page. */
+function disclaimerFooter() {
+  return new Footer({
+    children: [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: DISCLAIMER_SHORT, italics: true, size: 16, color: "555555" })],
+      }),
+    ],
+  });
+}
+
 /**
  * Renders a completed agreement as a Word document: the cover page, then the Standard Terms
  * (`terms`, which differ between the NDA and the other documents) in a second section, so they
  * start on a new page.
  */
 export function agreementDocx(doc: CoverPage, terms: Paragraph[]): Promise<Blob> {
+  const footers = { default: disclaimerFooter() };
   const word = new Document({
     styles: { default: { document: { run: { font: "Times New Roman", size: 22 } } } },
     sections: [
       {
+        footers,
         children: [
           new Paragraph({ heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER, text: doc.title }),
+          ...disclaimerNotice(),
           new Paragraph({ heading: HeadingLevel.HEADING_2, text: "Cover Page" }),
           new Paragraph({ children: runs(doc.coverIntro), spacing: { after: 200 } }),
           ...coverFieldParagraphs(doc.coverFields),
@@ -95,6 +122,7 @@ export function agreementDocx(doc: CoverPage, terms: Paragraph[]): Promise<Blob>
         ],
       },
       {
+        footers,
         children: [
           new Paragraph({ heading: HeadingLevel.HEADING_2, text: "Standard Terms" }),
           ...terms,

@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { test as base, expect, type Page } from "@playwright/test";
 import type { ChatMessage } from "../src/lib/chat/api";
 import type { Draft } from "../src/lib/documents/types";
@@ -29,22 +30,57 @@ export const conversation = (page: Page) => page.getByRole("log", { name: "Conve
 export const chatPanel = (page: Page) => page.getByRole("region", { name: "AI assistant" });
 export const messageBox = (page: Page) => page.getByLabel("Your message");
 
-export const TEST_EMAIL = "ada@acme.test";
+export const PASSWORD = "correct horse battery";
 
-/** Fills in and submits the sign-in form, which accepts any email and password. */
-export async function signInWithForm(page: Page, email = TEST_EMAIL) {
+/**
+ * A fresh email for each test. Tests run in parallel against one backend whose database lives as
+ * long as the server, so they must not share accounts.
+ */
+export function uniqueEmail(name = "ada") {
+  return `${name}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}@acme.test`;
+}
+
+/** Creates an account through the API. The page's browser context keeps the session cookie. */
+export async function signUpViaApi(page: Page, email = uniqueEmail()) {
+  const response = await page.request.post("/api/auth/signup", { data: { email, password: PASSWORD } });
+  expect(response.status(), await response.text()).toBe(201);
+  return email;
+}
+
+/** Fills in and submits the sign-in form. */
+export async function signInWithForm(page: Page, email: string, password = PASSWORD) {
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill("anything");
+  await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
 }
 
-/** Signs in and waits for the drafting page, where no document has been chosen yet. */
+/** Fills in and submits the sign-up form. */
+export async function signUpWithForm(page: Page, email: string, password = PASSWORD) {
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Create account" }).click();
+}
+
+/**
+ * Signs up a new user and waits for the drafting page, where no document has been chosen yet.
+ * Returns the user's email.
+ */
 export async function openApp(page: Page) {
-  await page.goto("/");
-  await signInWithForm(page);
-  await expect(page).toHaveURL("/draft/");
+  const email = await signUpViaApi(page);
+  await page.goto("/draft/");
   await expect(messageBox(page)).toBeVisible();
   await expect(preview(page).getByRole("heading", { name: "Your agreement will appear here" })).toBeVisible();
+  return email;
+}
+
+/**
+ * Takes the console errors a test expects out of the list checked at the end. Chromium logs every
+ * 4xx response as "Failed to load resource", including a deliberately wrong password.
+ */
+export function expectHttpErrors(consoleErrors: string[], status: number, count = 1) {
+  const matches = consoleErrors.filter((e) => e.includes(`status of ${status}`));
+  expect(matches, `console errors for HTTP ${status}`).toHaveLength(count);
+  consoleErrors.splice(0, consoleErrors.length, ...consoleErrors.filter((e) => !matches.includes(e)));
 }
 
 /** A complete Mutual NDA, as the (fake) AI fills it in, and what the preview should then show. */
@@ -94,4 +130,14 @@ export async function say(page: Page, text: string, reply?: string) {
 export async function fillByChat(page: Page, draft: Draft = AGREEMENT.draft) {
   await fakeAi(page, { reply: "All done! You can download it now.", draft });
   await say(page, "Here are all the details.", "All done! You can download it now.");
+}
+
+/** The page's WCAG 2.1 AA violations found by axe, each with the elements involved. */
+export async function axeViolations(page: Page) {
+  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+  return results.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(" ")).join(", ")})`);
+}
+
+export async function expectNoAxeViolations(page: Page) {
+  expect(await axeViolations(page)).toEqual([]);
 }

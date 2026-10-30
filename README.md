@@ -5,7 +5,9 @@ A platform for drafting common legal agreements
 
 > **Work in progress:** This project is under active development and is expected to be complete in 1 week (by November 1, 2026).
 
-Today the app has a fake sign-in (any email and password work) and a drafting page. You tell an AI assistant what you need; it picks one of 11 Common Paper agreements, asks about the details and fills it in. If you ask for something Prelegal can't draft, it says so and offers the closest document it can.
+You create an account (email and password) and sign in. On the drafting page you tell an AI assistant what you need; it picks one of 11 Common Paper agreements, asks about the details and fills it in. If you ask for something Prelegal can't draft, it says so and offers the closest document it can.
+
+Every draft is saved to your account after each message. **My documents** lists them, so you can come back to one, keep chatting and download it again. Every document, on screen and in the PDF and Word downloads, is marked as a draft subject to legal review.
 
 ## Run it
 
@@ -25,7 +27,7 @@ OPENROUTER_API_KEY=your-key
 
 `.env` is passed to the container at run time and never copied into the image. Without a key the app still runs, but the chat shows "The AI assistant is unavailable right now."
 
-The database starts empty every time the container starts.
+The database starts empty every time the container starts, so **restarting the app deletes every account and saved document**. Sign up again after a restart.
 
 ## Layout
 
@@ -45,10 +47,13 @@ The database starts empty every time the container starts.
   - `PRELEGAL_DB_PATH` defaults to `backend/data/prelegal.db`.
   - `PRELEGAL_STATIC_DIR` defaults to `frontend/out`.
   - `PRELEGAL_DOCUMENTS_PATH` defaults to `documents.json` at the repository root.
-- `app/db.py`: SQLite through the standard library. On every startup the database file is deleted and recreated with the schema (currently a `users` table, for sign up and sign in later).
+- `app/db.py`: SQLite through the standard library. On every startup the database file is deleted and recreated with the schema: `users`, `sessions` and `documents`. `Db` is the FastAPI dependency for a connection; it commits before the response is sent.
+- `app/auth.py`: accounts and sessions. Passwords are hashed with scrypt (standard library). Signing in stores a random token, as a SHA-256 hash, in `sessions` and sets it in an httpOnly, SameSite=Lax cookie (`prelegal_session`, 14 days). `current_user` and `require_user` are the dependencies that read it.
 - `app/routers/`: one module per area of the API. Unknown `/api` paths return a JSON 404.
   - `health.py`: `GET /api/health`.
-  - `chat.py`: `POST /api/chat`, one turn of the drafting conversation. The browser sends the whole conversation, the draft so far (`{documentId, fields}`) and its date, and gets back the assistant's reply and the updated draft. Nothing is stored on the server. If the AI fails, it returns a 502 with a message for the user.
+  - `auth.py`: `POST /api/auth/signup`, `/signin` and `/signout`, and `GET /api/auth/me`, which answers `{"user": null}` (not a 401) when nobody is signed in.
+  - `chat.py`: `POST /api/chat`, one turn of the drafting conversation, for signed-in users. The browser sends the conversation, the draft so far (`{documentId, fields}`) and its date, and gets back the assistant's reply and the updated draft. If the AI fails, it returns a 502 with a message for the user.
+  - `documents.py`: the signed-in user's saved documents, `GET`/`POST /api/documents` and `GET`/`PUT`/`DELETE /api/documents/{id}`. Each holds a draft and its conversation. Someone else's document is a 404.
 - `app/llm.py`: calls `openrouter/openai/gpt-oss-120b` (served by Cerebras) through LiteLLM, with Structured Outputs. `get_llm` is a FastAPI dependency, so tests can swap in a fake.
 - `app/documents/`: what the AI needs to know about the documents.
   - `registry.py` loads `documents.json`. Every document also gets each party's company, signer's name and title, and notice address.
@@ -70,7 +75,7 @@ For hot reload on the frontend, run `npm run dev` in `frontend/` instead (http:/
 ## Tests
 
 ```bash
-cd backend && uv run pytest        # API, chat (with a fake AI), documents, static serving, database reset
+cd backend && uv run pytest        # accounts, saved documents, chat (with a fake AI), documents, static serving, database reset
 cd backend && uv run pytest -m live  # four conversations with the real AI (needs OPENROUTER_API_KEY)
 cd frontend && npm run test:all    # lint, type-check, Vitest, Playwright end to end
 ```

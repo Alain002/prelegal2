@@ -1,3 +1,4 @@
+import { api, ApiError, GENERIC_ERROR } from "@/lib/api";
 import type { Draft } from "@/lib/documents/types";
 import { todayIso } from "@/lib/today";
 
@@ -5,27 +6,18 @@ export type ChatMessage = { role: "user" | "assistant"; content: string };
 
 export type ChatTurn = { reply: string; draft: Draft };
 
-export const GENERIC_ERROR = "Something went wrong. Please try again.";
+// Errors whose message is written for users: the backend's 502 (the AI is unavailable), no
+// connection, and an ended session. Anything else is a bug the user can't fix.
+const SHOWN = new Set([0, 401, 502]);
 
 /** Sends the conversation and the draft so far; returns the AI's reply and the updated draft. */
 export async function sendChat(messages: ChatMessage[], draft: Draft): Promise<ChatTurn> {
-  let response: Response;
+  let body: unknown;
   try {
-    response = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      // The user's own date, so "today" is right in their timezone.
-      body: JSON.stringify({ messages, draft, today: todayIso() }),
-    });
-  } catch {
-    throw new Error("Could not reach Prelegal. Check your connection and try again.");
-  }
-
-  const body: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    // The backend's 502 carries a message written for users; anything else gets a generic one.
-    const detail = response.status === 502 && body && typeof body === "object" && "detail" in body ? body.detail : null;
-    throw new Error(typeof detail === "string" ? detail : GENERIC_ERROR);
+    // The user's own date, so "today" is right in their timezone.
+    body = await api("/api/chat", { method: "POST", body: { messages, draft, today: todayIso() } });
+  } catch (e) {
+    throw new Error(e instanceof ApiError && SHOWN.has(e.status) ? e.message : GENERIC_ERROR);
   }
   if (!isChatTurn(body)) throw new Error(GENERIC_ERROR);
   return body;
