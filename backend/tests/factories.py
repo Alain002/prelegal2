@@ -27,3 +27,12 @@ PILOT = {
     "party1Name": "Ada Lovelace",
     "party2Name": "Alan Turing",
 }
+
+PASSWORD = "correct horse battery"
+
+
+def sign_up(client, email: str = "ada@acme.test", password: str = PASSWORD):
+    """Creates an account through the real endpoint. The client keeps the session cookie."""
+    response = client.post("/api/auth/signup", json={"email": email, "password": password})
+    assert response.status_code == 201, response.text
+    return response

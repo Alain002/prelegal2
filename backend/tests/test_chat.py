@@ -36,7 +36,8 @@ class FakeLlm:
 
 
 @pytest.fixture
-def llm(client: TestClient) -> Iterator[FakeLlm]:
+def llm(signed_in: TestClient) -> Iterator[FakeLlm]:
+    client = signed_in
     fake = FakeLlm(turn("A Pilot Agreement it is.", "Who is the customer?", "pilot", party1Company="Acme Inc."))
     client.app.dependency_overrides[get_llm] = lambda: fake
     yield fake
@@ -123,3 +124,9 @@ def test_llm_failure_is_a_502_with_a_friendly_message(client: TestClient, llm: F
 def test_rejects_invalid_requests(client: TestClient, llm: FakeLlm, body: dict[str, Any]) -> None:
     assert client.post("/api/chat", json=body).status_code == 422
     assert llm.calls == []
+
+
+def test_needs_a_signed_in_user(client: TestClient) -> None:
+    response = client.post("/api/chat", json=request(("user", "A pilot for Acme.")))
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Please sign in."}

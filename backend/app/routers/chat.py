@@ -1,4 +1,4 @@
-"""POST /api/chat: one turn of the drafting conversation."""
+"""POST /api/chat: one turn of the drafting conversation, for signed-in users."""
 
 import logging
 from datetime import date
@@ -7,6 +7,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
+from ..auth import require_user
 from ..documents.assistant import Turn, build_messages, compose_reply
 from ..documents.drafts import Draft, apply_turn
 from ..llm import Llm, LlmError, get_llm
@@ -48,7 +49,7 @@ class ChatResponse(BaseModel):
     draft: Draft
 
 
-@router.post("/chat")
+@router.post("/chat", dependencies=[Depends(require_user)])
 def chat(request: ChatRequest, llm: Llm = Depends(get_llm)) -> ChatResponse:
     # A plain (sync) function: FastAPI runs it in a worker thread, so the blocking LLM call
     # doesn't hold up other requests.

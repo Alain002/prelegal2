@@ -6,8 +6,8 @@ from datetime import date
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from pydantic.alias_generators import to_camel
 
+from ..models import CamelModel
 from .registry import DOCUMENTS, TODAY, FieldDef, fields_for
 
 MAX_TEXT = 2000
@@ -15,11 +15,9 @@ MAX_YEARS = 99
 MAX_FIELDS = 100
 
 
-class Draft(BaseModel):
+class Draft(CamelModel):
     """Mirrors Draft in frontend/src/lib/documents/types.ts. Field values are plain strings keyed by
     field key; a missing key means blank."""
-
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     document_id: str | None = None
     fields: Annotated[dict[str, Annotated[str, Field(max_length=MAX_TEXT)]], Field(max_length=MAX_FIELDS)] = {}
