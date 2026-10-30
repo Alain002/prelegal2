@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { filledValues, readTemplate, tinyTemplate } from "@/test/fixtures";
+import { filledValues, readTemplate, registry, tinyTemplate } from "@/test/fixtures";
 import { buildNda } from "./buildNda";
-import { defaultNdaValues } from "./defaults";
 import type { NdaValues } from "./types";
 
 /**
@@ -16,8 +15,11 @@ const allTermOptions: NdaValues[] = [
 ];
 
 describe("cover page wording matches the template", () => {
-  it("uses the template's suggested purpose as the default", () => {
-    expect(coverPage).toContain(`[${defaultNdaValues.purpose}]`);
+  it("uses the template's suggested purpose as the default (set in documents.json)", () => {
+    const nda = registry.documents.find((d) => d.id === "mutual-nda")!;
+    const purpose = nda.fields.find((f) => f.key === "purpose")!.default;
+    expect(purpose).toBeTruthy();
+    expect(coverPage).toContain(`[${purpose}]`);
   });
 
   it("uses the template's sentence for each term option", () => {

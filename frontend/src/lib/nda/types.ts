@@ -62,6 +62,8 @@ export interface NdaDocument {
   coverIntro: Inline[];
   coverFields: CoverField[];
   signingStatement: string;
+  /** Column headings of the signature table: "PARTY 1" and "PARTY 2". */
+  partyHeadings: string[];
   signatureRows: SignatureRow[];
   clauses: Clause[];
   attribution: Inline[];

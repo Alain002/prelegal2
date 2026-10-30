@@ -6,7 +6,7 @@ This is a SaaS product to allow users to draft legal agreements based on templat
 
 @catalog.json
 
-Current state: the V1 foundation (frontend, backend, temporary database, Docker, scripts) is in place with a fake sign-in. Users fill in the Mutual NDA (the only supported document so far) by chatting with the AI. See "Implementation status" below.
+Current state: the V1 foundation (frontend, backend, temporary database, Docker, scripts) is in place with a fake sign-in. Users draft any of the 11 catalog documents by chatting with the AI, which picks the document and fills it in. `documents.json` (not `catalog.json`) is what the app reads: each document's parties and fields. See "Implementation status" below.
 
 ## Development process
 
@@ -62,31 +62,38 @@ Available as Tailwind classes such as `bg-brand-purple` and `text-brand-navy` (d
 - **KAN-6:** V1 foundation.
   - **Backend** (`backend/`, uv, Python 3.12 pinned):
     - `app/main.py` has a `create_app()` factory. It adds routers from `app/routers/` (`GET /api/health`, plus `POST /api/chat` from KAN-7), returns a JSON 404 for unknown `/api/*` paths, then mounts `frontend/out` with `StaticFiles(html=True)`.
-    - Settings come from env vars `PRELEGAL_DB_PATH` and `PRELEGAL_STATIC_DIR` (`app/config.py`).
+    - Settings come from env vars `PRELEGAL_DB_PATH`, `PRELEGAL_STATIC_DIR` and (KAN-8) `PRELEGAL_DOCUMENTS_PATH` (`app/config.py`).
     - SQLite through stdlib `sqlite3` (`app/db.py`). It is deleted and recreated on every startup with a `users` table (id, email unique, password_hash, created_at). No auth endpoints use it yet.
   - **Frontend:**
     - Static export with `trailingSlash: true`, so pages are `out/<page>/index.html`. Don't use server-only request features.
     - `/` is a fake sign-in page (any email and password). The email is stored in localStorage via `src/lib/session.ts` and read through `useSession()`. Replace these with real auth.
-    - Signed-in pages live in the `src/app/(app)/` route group, whose layout adds `AuthGuard` and `AppHeader` (Sign out). The NDA creator is at `/nda/`.
+    - Signed-in pages live in the `src/app/(app)/` route group, whose layout adds `AuthGuard` and `AppHeader` (Sign out). The drafting page is at `/draft/` (it was `/nda/` before KAN-8).
   - **Docker:** a multi-stage root `Dockerfile` (node build, then python:3.12-slim, non-root, port 8000). The DB is at `/tmp/prelegal.db`. `.env` is passed at run time with `--env-file`, never baked into the image.
   - **Scripts:** the mac and linux scripts wrap the shared `scripts/start.sh` and `scripts/stop.sh`. The container is named `prelegal`.
-- **KAN-7:** an AI chat replaced the NDA form. It is still only the Mutual NDA.
+- **KAN-7:** an AI chat replaced the NDA form.
   - **Backend:**
-    - `POST /api/chat` is in `app/routers/chat.py`. It is stateless: the browser sends the whole conversation (the static greeting included) and the current `NdaValues`, and gets back `{reply, values}`.
+    - `POST /api/chat` is in `app/routers/chat.py`. It is stateless: the browser sends the whole conversation (the static greeting included) and the draft each turn.
     - `app/llm.py` calls LiteLLM with Structured Outputs. `get_llm` is a dependency that tests override.
-    - `app/documents/nda.py` holds the camelCase `NdaValues` models, the system prompt, and the flat nullable `NdaPatch` the AI returns (null means unchanged). Strict schemas handle flat, nullable fields reliably.
-    - `apply_patch` merges the patch and keeps values valid. Years alone imply "expires"/"years".
     - LLM failures, including a missing key, return 502 with a user-facing message.
     - Limits: at most 60 messages of 4000 characters each. The browser sends only the latest 40 (`MAX_HISTORY` in `useChat.ts`), and the server cuts replies to 4000 characters. Without these caps a long chat would get stuck on 422s.
-    - Only `modifications` can be cleared, by sending a blank value. Every other field ignores blank values, so a slip can't erase filled-in data.
+  - **Frontend:** `src/lib/chat/api.ts`, `useChat.ts` (holds `GREETING`) and `src/components/Chat.tsx`. The chat column is sized to fit below the headers, `lg:h-[calc(100vh-13.5rem)]`, so keep the page header short.
+- **KAN-8:** all 11 catalog documents.
+  - **`documents.json`** (repository root) is the single source of truth for what can be drafted: each document's id, name, template, two party roles (party 1 plays the first) and fields (key, label, kind `text`/`date`/`term`, essential, hint for the AI, default). Each document also gets `party{1,2}{Company,Name,Title,NoticeAddress}`. The same key means the same thing in every document, which is how answers carry over on a switch. `backend/tests/test_registry.py` checks it against `catalog.json` and against every defined-term span in the templates.
+  - **Backend** (`app/documents/`):
+    - `registry.py` loads it. `drafts.py` has `Draft` (`documentId` plus a flat string map of fields) and `apply_turn`: a switch keeps shared keys and applies defaults (`"today"` for dates), then updates are cleaned (real dates, 1-99 years or the open-ended choice, capped text). Essential fields ignore blanks; optional ones can be cleared.
+    - `assistant.py` has the prompt and the AI's answer, `Turn` (`reply`, `question`, `document_id` as an enum of ids, `updates` as a list of `{key, value}`). One shallow schema serves every document.
+    - `compose_reply` guarantees a follow-on question: while no document is chosen or an essential field is missing, the reply must end with a question, the AI's own or `fallback_question` about the next missing field.
+    - The request also carries the browser's `today`, so dates are right in the user's timezone.
   - **Frontend:**
-    - The pieces are `src/lib/chat/api.ts`, `useChat.ts` (holds `GREETING`) and `src/components/Chat.tsx`. `NdaForm` was removed.
-    - The `(app)/nda` chat column is sized to fit below the headers, `lg:h-[calc(100vh-13.5rem)]`.
-  - **Prompt tuning:** the prompt was tuned against the real model. It must say to fill EVERY field a message mentions, and to keep the MNDA term separate from the confidentiality term. Recheck with `uv run pytest -m live` after prompt changes.
+    - `(app)/draft/page.tsx` loads the documents at build time (`lib/documents/loadDocuments.ts`, which parses the Standard Terms with `parseTerms.ts`) and renders `DraftCreator`, which owns the draft. Before a document is chosen the preview lists them all.
+    - The Mutual NDA (`NDA_ID`) keeps its own cover page: `toNdaValues` turns the draft into `NdaValues` for `buildNda`, `NdaPreview` and `lib/nda/toDocx.ts`. The other documents get a generated cover page: `buildDocument`, `DocumentPreview` and `lib/documents/toDocx.ts`. Both share the outline in `AgreementPage` (`DocumentParts.tsx`) and `agreementDocx` (`lib/docx.ts`).
+    - CC BY 4.0: every generated document credits Common Paper and says what Prelegal changed (`templates/LICENSE.txt`). Keep that in the attribution.
+  - **Prompt tuning:** tuned against the real model. It must say to fill EVERY field a message mentions, to offer the closest document for unsupported requests, to ask the document's own terms before the signers, to confirm defaults rather than ask for them, and not to ask users for date formats. Field guidance lives in the `documents.json` hints (e.g. the MNDA term is separate from the confidentiality term). Recheck with `uv run pytest -m live` after prompt or hint changes.
 - **Tests:**
-  - Backend: `cd backend && uv run pytest`. It uses a fake LLM. The real-model test is opt-in with `-m live`.
+  - Backend: `cd backend && uv run pytest`. It uses a fake LLM. The real-model tests are opt-in with `-m live`.
+  - Frontend test drafts live in `src/test/drafts.ts`, shared by Vitest and Playwright.
   - Frontend e2e fakes the AI with Playwright route interception (`fakeAi` in `e2e/helpers.ts`). There is no test-only code in the backend.
   - Frontend: `cd frontend && npm run test:all` (lint, tsc, Vitest, Playwright).
   - Playwright runs against the FastAPI-served build. To test the container, run `PW_REUSE=1 E2E_PORT=8000 npm run test:e2e`.
   - Details are in `frontend/TESTING.md`.
-- **Next:** real sign up and sign in using the `users` table, then more document types from the catalog. Add a document registry when the second type arrives, and consider saving conversations per user.
+- **Next:** real sign up and sign in using the `users` table, then saving drafts and conversations per user.

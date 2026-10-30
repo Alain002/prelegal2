@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { defaultNdaValues, todayIso } from "./defaults";
+import { todayIso } from "./today";
 
 describe("todayIso", () => {
   it("runs in a timezone behind UTC, so a UTC-based date would fail", () => {
@@ -19,18 +19,5 @@ describe("todayIso", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 2, 7, 12, 0));
     expect(todayIso()).toBe("2026-03-07");
-  });
-});
-
-describe("defaultNdaValues", () => {
-  it("starts with one-year terms and no date (filled in after the page loads)", () => {
-    expect(defaultNdaValues.mndaTerm).toEqual({ kind: "expires", years: 1 });
-    expect(defaultNdaValues.confidentialityTerm).toEqual({ kind: "years", years: 1 });
-    expect(defaultNdaValues.effectiveDate).toBe("");
-  });
-
-  it("gives each party its own object", () => {
-    expect(defaultNdaValues.parties).toHaveLength(2);
-    expect(defaultNdaValues.parties[0]).not.toBe(defaultNdaValues.parties[1]);
   });
 });

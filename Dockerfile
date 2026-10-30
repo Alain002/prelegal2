@@ -7,8 +7,9 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
-# The build reads the templates from ../templates, as in the repository.
+# The build reads the templates and documents.json from the parent directory, as in the repository.
 COPY templates/ /app/templates/
+COPY documents.json /app/documents.json
 RUN npm run build
 
 # --- Backend: FastAPI app, serving the frontend ---
@@ -19,6 +20,8 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY backend/app ./app
+# The documents Prelegal can draft, shared with the frontend.
+COPY documents.json ./documents.json
 COPY --from=frontend /app/frontend/out ./static
 
 RUN useradd --system --no-create-home prelegal
@@ -27,6 +30,7 @@ USER prelegal
 # The database lives in /tmp and is recreated from scratch every time the container starts.
 ENV PATH="/app/.venv/bin:$PATH" \
     PRELEGAL_STATIC_DIR=/app/static \
+    PRELEGAL_DOCUMENTS_PATH=/app/documents.json \
     PRELEGAL_DB_PATH=/tmp/prelegal.db
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

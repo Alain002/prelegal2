@@ -5,24 +5,25 @@ import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage, ChatTurn } from "@/lib/chat/api";
 import { GREETING, MAX_HISTORY } from "@/lib/chat/useChat";
-import { defaultNdaValues } from "@/lib/nda/defaults";
-import type { NdaValues } from "@/lib/nda/types";
-import { filledValues } from "@/test/fixtures";
+import type { Draft } from "@/lib/documents/types";
+import { pilotDraft } from "@/test/fixtures";
 import { Chat } from "./Chat";
 
-const sendChat = vi.hoisted(() => vi.fn<(messages: ChatMessage[], values: NdaValues) => Promise<ChatTurn>>());
+const sendChat = vi.hoisted(() => vi.fn<(messages: ChatMessage[], draft: Draft) => Promise<ChatTurn>>());
 vi.mock("@/lib/chat/api", () => ({ sendChat }));
 
 beforeEach(() => sendChat.mockReset());
 
-function setup(values: NdaValues = defaultNdaValues) {
-  const onValues = vi.fn();
+const emptyDraft: Draft = { documentId: null, fields: {} };
+
+function setup(draft: Draft = emptyDraft) {
+  const onDraft = vi.fn();
   render(
     <StrictMode>
-      <Chat values={values} onValues={onValues} />
+      <Chat draft={draft} onDraft={onDraft} />
     </StrictMode>,
   );
-  return { user: userEvent.setup(), onValues, input: screen.getByLabelText("Your message") };
+  return { user: userEvent.setup(), onDraft, input: screen.getByLabelText("Your message") };
 }
 
 const log = () => within(screen.getByRole("log", { name: "Conversation" }));
@@ -43,8 +44,8 @@ describe("Chat", () => {
   });
 
   it("sends the message with the conversation so far and shows the reply", async () => {
-    sendChat.mockResolvedValueOnce({ reply: "Who signs for Acme?", values: filledValues });
-    const { user, input, onValues } = setup();
+    sendChat.mockResolvedValueOnce({ reply: "Who signs for Acme?", draft: pilotDraft });
+    const { user, input, onDraft } = setup();
 
     await user.type(input, "Acme and Globex.");
     await user.click(screen.getByRole("button", { name: "Send" }));
@@ -58,13 +59,13 @@ describe("Chat", () => {
         { role: "assistant", content: GREETING },
         { role: "user", content: "Acme and Globex." },
       ],
-      defaultNdaValues,
+      emptyDraft,
     );
-    expect(onValues).toHaveBeenCalledWith(filledValues);
+    expect(onDraft).toHaveBeenCalledWith(pilotDraft);
   });
 
   it("labels who said what for screen readers", async () => {
-    sendChat.mockResolvedValueOnce({ reply: "Thanks!", values: filledValues });
+    sendChat.mockResolvedValueOnce({ reply: "Thanks!", draft: pilotDraft });
     const { user, input } = setup();
     await user.type(input, "Hello{Enter}");
     await log().findByText("Thanks!");
@@ -74,7 +75,7 @@ describe("Chat", () => {
   });
 
   it("sends with Enter and adds a new line with Shift+Enter", async () => {
-    sendChat.mockResolvedValueOnce({ reply: "Noted.", values: filledValues });
+    sendChat.mockResolvedValueOnce({ reply: "Noted.", draft: pilotDraft });
     const { user, input } = setup();
 
     await user.type(input, "Line one{Shift>}{Enter}{/Shift}Line two");
@@ -105,32 +106,32 @@ describe("Chat", () => {
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
     expect(sendChat).toHaveBeenCalledOnce();
 
-    await act(async () => turn.resolve({ reply: "Got it.", values: filledValues }));
+    await act(async () => turn.resolve({ reply: "Got it.", draft: pilotDraft }));
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
   });
 
   it("shows an error, and Try again resends without repeating the message", async () => {
     sendChat.mockRejectedValueOnce(new Error("The AI assistant is unavailable right now. Please try again."));
-    const { user, input, onValues } = setup();
+    const { user, input, onDraft } = setup();
 
     await user.type(input, "Acme and Globex.{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent("The AI assistant is unavailable right now.");
-    expect(onValues).not.toHaveBeenCalled();
+    expect(onDraft).not.toHaveBeenCalled();
 
-    sendChat.mockResolvedValueOnce({ reply: "Who signs for Acme?", values: filledValues });
+    sendChat.mockResolvedValueOnce({ reply: "Who signs for Acme?", draft: pilotDraft });
     await user.click(screen.getByRole("button", { name: "Try again" }));
 
     expect(await log().findByText("Who signs for Acme?")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(log().getAllByText("Acme and Globex.")).toHaveLength(1);
     expect(sendChat.mock.calls[1][0]).toEqual(sendChat.mock.calls[0][0]);
-    expect(onValues).toHaveBeenCalledWith(filledValues);
+    expect(onDraft).toHaveBeenCalledWith(pilotDraft);
   });
 
   it("sends only the latest messages in a long conversation", async () => {
     let turn = 0;
-    sendChat.mockImplementation(async () => ({ reply: `Reply ${++turn}`, values: filledValues }));
+    sendChat.mockImplementation(async () => ({ reply: `Reply ${++turn}`, draft: pilotDraft }));
     const { user, input } = setup();
 
     for (let n = 1; n <= MAX_HISTORY / 2 + 5; n++) {
@@ -148,10 +149,10 @@ describe("Chat", () => {
     expect(log().getByText(GREETING)).toBeInTheDocument();
   });
 
-  it("sends the values it is given", async () => {
-    sendChat.mockResolvedValueOnce({ reply: "Thanks.", values: filledValues });
-    const { user, input } = setup(filledValues);
+  it("sends the draft it is given", async () => {
+    sendChat.mockResolvedValueOnce({ reply: "Thanks.", draft: pilotDraft });
+    const { user, input } = setup(pilotDraft);
     await user.type(input, "Change the law to Texas{Enter}");
-    expect(sendChat.mock.calls[0][1]).toBe(filledValues);
+    expect(sendChat.mock.calls[0][1]).toBe(pilotDraft);
   });
 });

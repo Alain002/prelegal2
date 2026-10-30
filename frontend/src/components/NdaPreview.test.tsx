@@ -2,8 +2,8 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { buildNda } from "@/lib/nda/buildNda";
-import { defaultNdaValues } from "@/lib/nda/defaults";
-import { filledValues, realTemplate } from "@/test/fixtures";
+
+import { blankNdaValues, filledValues, realTemplate } from "@/test/fixtures";
 import { NdaPreview } from "./NdaPreview";
 
 const renderPreview = (values = filledValues) => render(<NdaPreview nda={buildNda(values, realTemplate)} />);
@@ -28,7 +28,7 @@ describe("NdaPreview", () => {
   });
 
   it("shows placeholders for missing details", () => {
-    renderPreview(defaultNdaValues);
+    renderPreview(blankNdaValues);
     expect(screen.getByText("[Effective Date]")).toBeInTheDocument();
     expect(screen.getByText("Governing Law: [Governing Law]")).toBeInTheDocument();
     expect(screen.getByText("Jurisdiction: [Jurisdiction]")).toBeInTheDocument();

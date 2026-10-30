@@ -1,25 +1,29 @@
-"""Test data shared by the chat and NDA tests."""
+"""Test data shared by the chat and document tests."""
 
-from typing import Any
-
-from app.documents.nda import NdaPatch
-
-
-def blank_values(**overrides: Any) -> dict[str, Any]:
-    """NDA values as the browser sends them at the start: defaults, today's date, no parties yet."""
-    values: dict[str, Any] = {
-        "purpose": "Evaluating whether to enter into a business relationship with the other party.",
-        "effectiveDate": "2026-10-30",
-        "mndaTerm": {"kind": "expires", "years": 1},
-        "confidentialityTerm": {"kind": "years", "years": 1},
-        "governingLaw": "",
-        "jurisdiction": "",
-        "modifications": "",
-        "parties": [{"name": "", "title": "", "company": "", "noticeAddress": ""} for _ in range(2)],
-    }
-    return values | overrides
+from app.documents.assistant import Turn
+from app.documents.drafts import FieldUpdate
 
 
-def patch(**changes: object) -> NdaPatch:
-    """An AI patch that changes only `changes` (every other field is null)."""
-    return NdaPatch(**{field: None for field in NdaPatch.model_fields} | changes)
+def turn(reply: str = "Got it.", question: str | None = None, document_id: str | None = None, **updates: str) -> Turn:
+    """An AI answer that sets `updates` (field key to value)."""
+    return Turn(
+        reply=reply,
+        question=question,
+        document_id=document_id,
+        updates=[FieldUpdate(key=key, value=value) for key, value in updates.items()],
+    )
+
+
+# Every essential field of the Pilot Agreement, filled in.
+PILOT = {
+    "party1Company": "Acme Inc.",
+    "party2Company": "Globex LLC",
+    "effectiveDate": "2026-11-01",
+    "product": "Acme Analytics",
+    "pilotPeriod": "90 days",
+    "generalCapAmount": "$50,000",
+    "governingLaw": "Delaware",
+    "chosenCourts": "courts located in Wilmington, Delaware",
+    "party1Name": "Ada Lovelace",
+    "party2Name": "Alan Turing",
+}

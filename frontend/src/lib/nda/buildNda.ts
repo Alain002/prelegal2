@@ -78,6 +78,7 @@ export function buildNda(values: NdaValues, template: NdaTemplate): NdaDocument 
     ],
     signingStatement:
       "By signing this Cover Page, each party agrees to enter into this MNDA as of the Effective Date.",
+    partyHeadings: parties.map((_, i) => `PARTY ${i + 1}`),
     signatureRows: [
       { label: "Signature", values: blank },
       { label: "Print Name", values: partyValues((p) => p.name) },
@@ -87,9 +88,12 @@ export function buildNda(values: NdaValues, template: NdaTemplate): NdaDocument 
       { label: "Date", values: blank },
     ],
     clauses: template.clauses,
-    attribution: template.attribution,
+    // The licence asks adaptations to say what changed.
+    attribution: [...template.attribution, { kind: "text", text: ` ${NDA_CHANGES}` }],
   };
 }
+
+export const NDA_CHANGES = "Changes: Prelegal filled in the Cover Page and reformatted the document.";
 
 /** Builds a safe download filename such as "Mutual-NDA-Acme-Globex". */
 export function ndaFileName(values: NdaValues): string {

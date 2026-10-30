@@ -2,15 +2,15 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, signInWithForm, TEST_EMAIL, test } from "./helpers";
 
 test.describe("fake sign in", () => {
-  test("signs in with any email and password and lands in the NDA creator @mobile", async ({ page }) => {
+  test("signs in with any email and password and lands on the drafting page @mobile", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle("Sign in | Prelegal");
     await expect(page.getByRole("heading", { name: "Sign in to your account" })).toBeVisible();
 
     await signInWithForm(page);
 
-    await expect(page).toHaveURL("/nda/");
-    await expect(page.getByRole("heading", { name: "Mutual NDA Creator" })).toBeVisible();
+    await expect(page).toHaveURL("/draft/");
+    await expect(page.getByRole("heading", { name: "Draft an agreement" })).toBeVisible();
     await expect(page.getByText(TEST_EMAIL)).toBeVisible();
   });
 
@@ -25,8 +25,8 @@ test.describe("fake sign in", () => {
     await expect(page).toHaveURL("/");
   });
 
-  test("sends signed-out visitors from the NDA creator to the sign-in page", async ({ page }) => {
-    await page.goto("/nda/");
+  test("sends signed-out visitors from the drafting page to the sign-in page", async ({ page }) => {
+    await page.goto("/draft/");
     await expect(page).toHaveURL("/");
     await expect(page.getByRole("heading", { name: "Sign in to your account" })).toBeVisible();
   });
@@ -34,13 +34,13 @@ test.describe("fake sign in", () => {
   test("stays signed in across reloads and skips the sign-in page", async ({ page }) => {
     await page.goto("/");
     await signInWithForm(page);
-    await expect(page).toHaveURL("/nda/");
+    await expect(page).toHaveURL("/draft/");
 
     await page.reload();
-    await expect(page.getByRole("heading", { name: "Mutual NDA Creator" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Draft an agreement" })).toBeVisible();
 
     await page.goto("/");
-    await expect(page).toHaveURL("/nda/");
+    await expect(page).toHaveURL("/draft/");
   });
 
   test("signs out back to the sign-in page", async ({ page }) => {
@@ -49,7 +49,7 @@ test.describe("fake sign in", () => {
     await page.getByRole("button", { name: "Sign out" }).click();
 
     await expect(page).toHaveURL("/");
-    await page.goto("/nda/");
+    await page.goto("/draft/");
     await expect(page).toHaveURL("/");
   });
 
@@ -70,8 +70,8 @@ test.describe("backend", () => {
   test("redirects page URLs without a trailing slash", async ({ page }) => {
     await page.goto("/");
     await signInWithForm(page);
-    await page.goto("/nda");
-    await expect(page).toHaveURL("/nda/");
+    await page.goto("/draft");
+    await expect(page).toHaveURL("/draft/");
   });
 
   // Uses `request` rather than a page: the browser logs every 404 as a console error.

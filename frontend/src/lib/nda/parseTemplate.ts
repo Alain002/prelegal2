@@ -1,8 +1,9 @@
 import type { Clause, Inline, NdaTemplate } from "./types";
 
-// Matches, in order: **bold**, <span class="coverpage_link">Term</span>, [text](url)
+// Matches, in order: **bold**, a defined-term span such as <span class="keyterms_link">Term</span>
+// (any *_link class, optionally with an id), [text](url), and <https://autolink>.
 const INLINE_PATTERN =
-  /\*\*(.+?)\*\*|<span class="coverpage_link">(.+?)<\/span>|\[(.+?)\]\((.+?)\)/g;
+  /\*\*(.+?)\*\*|<span class="\w+_link"(?: id="[^"]*")?>(.+?)<\/span>|\[(.+?)\]\((.+?)\)|<(https?:\/\/[^>\s]+)>/g;
 
 const CLAUSE_PATTERN = /^(\d+)\.\s+\*\*(.+?)\*\*\.\s*([\s\S]*)$/;
 
@@ -15,10 +16,14 @@ export function parseInline(source: string): Inline[] {
     if (match.index > cursor) {
       result.push({ kind: "text", text: source.slice(cursor, match.index) });
     }
-    const [, bold, term, linkText, href] = match;
-    if (bold !== undefined) result.push({ kind: "bold", text: bold });
-    else if (term !== undefined) result.push({ kind: "term", text: term });
-    else result.push({ kind: "link", text: linkText, href });
+    const [, bold, term, linkText, href, autolink] = match;
+    if (bold !== undefined) {
+      // Bold passages can contain defined terms and links; only their plain text becomes bold.
+      result.push(...parseInline(bold).map((inline): Inline => (inline.kind === "text" ? { ...inline, kind: "bold" } : inline)));
+    } else if (term !== undefined) result.push({ kind: "term", text: term });
+    else if (autolink !== undefined) result.push({ kind: "link", text: autolink, href: autolink });
+    // One template links to "commonpaper.com/..." without the https://.
+    else result.push({ kind: "link", text: linkText, href: /^[a-z]+:/i.test(href) ? href : `https://${href}` });
     cursor = match.index + match[0].length;
   }
 

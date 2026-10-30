@@ -7,7 +7,7 @@ import { router } from "@/test/router";
 import { LoginForm } from "./LoginForm";
 
 describe("LoginForm", () => {
-  it("signs in with any email and password and goes to the NDA creator", async () => {
+  it("signs in with any email and password and goes to the drafting page", async () => {
     const user = userEvent.setup();
     render(<LoginForm />);
 
@@ -16,7 +16,7 @@ describe("LoginForm", () => {
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(getSession()).toEqual({ email: "ada@acme.test" });
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/nda/"));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/draft/"));
   });
 
   it("does not sign in until both fields are filled", async () => {
@@ -42,6 +42,6 @@ describe("LoginForm", () => {
   it("skips the form when already signed in", async () => {
     signIn("ada@acme.test");
     render(<LoginForm />);
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/nda/"));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/draft/"));
   });
 });

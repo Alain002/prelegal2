@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { filledValues } from "@/test/fixtures";
+import { pilotDraft } from "@/test/fixtures";
 import { GENERIC_ERROR, sendChat, type ChatMessage } from "./api";
 
 const messages: ChatMessage[] = [
@@ -21,22 +21,31 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 afterEach(() => vi.unstubAllGlobals());
 
 describe("sendChat", () => {
-  it("posts the conversation and values, and returns the AI's turn", async () => {
-    const turn = { reply: "Who signs for Acme?", values: filledValues };
+  it("posts the conversation, the draft and the user's date, and returns the AI's turn", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 23:30 local (Los Angeles) is already October 29 in UTC.
+    vi.setSystemTime(new Date(2026, 9, 28, 23, 30));
+    const turn = { reply: "Who signs for Acme?", draft: pilotDraft };
     const fetch = stubFetch(json(turn));
 
-    await expect(sendChat(messages, filledValues)).resolves.toEqual(turn);
+    await expect(sendChat(messages, pilotDraft)).resolves.toEqual(turn);
 
     expect(fetch).toHaveBeenCalledWith("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, values: filledValues }),
+      body: JSON.stringify({ messages, draft: pilotDraft, today: "2026-10-28" }),
     });
+  });
+
+  it("accepts a draft with no document chosen yet", async () => {
+    const turn = { reply: "Which document?", draft: { documentId: null, fields: {} } };
+    stubFetch(json(turn));
+    await expect(sendChat(messages, turn.draft)).resolves.toEqual(turn);
   });
 
   it("shows the backend's message when the AI is unavailable", async () => {
     stubFetch(json({ detail: "The AI assistant is unavailable right now. Please try again." }, 502));
-    await expect(sendChat(messages, filledValues)).rejects.toThrow("The AI assistant is unavailable right now.");
+    await expect(sendChat(messages, pilotDraft)).rejects.toThrow("The AI assistant is unavailable right now.");
   });
 
   it.each([
@@ -44,14 +53,15 @@ describe("sendChat", () => {
     ["a server error without JSON", new Response("Internal Server Error", { status: 500 })],
     ["a 502 without a message", new Response("Bad Gateway", { status: 502 })],
     ["a malformed answer", json({ reply: "Hi" })],
-    ["an answer with the wrong number of parties", json({ reply: "Hi", values: { ...filledValues, parties: [] } })],
+    ["an answer without fields", json({ reply: "Hi", draft: { documentId: "pilot" } })],
+    ["an answer with a bad document id", json({ reply: "Hi", draft: { documentId: 3, fields: {} } })],
   ])("shows a generic message for %s", async (_, response) => {
     stubFetch(response);
-    await expect(sendChat(messages, filledValues)).rejects.toThrow(GENERIC_ERROR);
+    await expect(sendChat(messages, pilotDraft)).rejects.toThrow(GENERIC_ERROR);
   });
 
   it("explains when the server can't be reached", async () => {
     stubFetch(new TypeError("Failed to fetch"));
-    await expect(sendChat(messages, filledValues)).rejects.toThrow("Could not reach Prelegal");
+    await expect(sendChat(messages, pilotDraft)).rejects.toThrow("Could not reach Prelegal");
   });
 });

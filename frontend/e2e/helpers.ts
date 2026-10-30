@@ -1,6 +1,7 @@
 import { test as base, expect, type Page } from "@playwright/test";
 import type { ChatMessage } from "../src/lib/chat/api";
-import type { NdaValues } from "../src/lib/nda/types";
+import type { Draft } from "../src/lib/documents/types";
+import { ndaDraft, pilotDraft } from "../src/test/drafts";
 
 /**
  * Playwright's `test`, extended so every test fails if the page logs a console
@@ -37,38 +38,32 @@ export async function signInWithForm(page: Page, email = TEST_EMAIL) {
   await page.getByRole("button", { name: "Sign in" }).click();
 }
 
-/** Signs in, opens the NDA creator and waits until the Effective Date default has been applied. */
+/** Signs in and waits for the drafting page, where no document has been chosen yet. */
 export async function openApp(page: Page) {
   await page.goto("/");
   await signInWithForm(page);
-  await expect(page).toHaveURL("/nda/");
+  await expect(page).toHaveURL("/draft/");
   await expect(messageBox(page)).toBeVisible();
-  await expect(preview(page).getByText("[Effective Date]")).toHaveCount(0);
+  await expect(preview(page).getByRole("heading", { name: "Your agreement will appear here" })).toBeVisible();
 }
 
-/** A complete agreement, as the (fake) AI fills it in, and what the preview should then show. */
+/** A complete Mutual NDA, as the (fake) AI fills it in, and what the preview should then show. */
 export const AGREEMENT = {
-  values: {
-    purpose: "Evaluating a joint product launch.",
-    effectiveDate: "2026-11-15",
-    mndaTerm: { kind: "expires", years: 2 },
-    confidentialityTerm: { kind: "years", years: 5 },
-    governingLaw: "Delaware",
-    jurisdiction: "courts located in New Castle, DE",
-    modifications: "Section 8 does not apply.\nNotices by email only.",
-    parties: [
-      { company: "Acme Inc.", name: "Ada Lovelace", title: "CEO", noticeAddress: "ada@acme.test" },
-      { company: "Globex, LLC", name: "Alan Turing", title: "CTO", noticeAddress: "1 Main St\nWilmington, DE 19801" },
-    ],
-  } satisfies NdaValues,
-  effectiveDateText: "November 15, 2026",
+  draft: {
+    ...ndaDraft,
+    fields: { ...ndaDraft.fields, modifications: "Section 8 does not apply.\nNotices by email only." },
+  } satisfies Draft,
+  effectiveDateText: "November 1, 2026",
   fileName: "Mutual-NDA-Acme-Inc-Globex-LLC.docx",
 };
 
-export type ChatRequest = { messages: ChatMessage[]; values: NdaValues };
+/** A Pilot Agreement with its essential fields filled in: one of the documents with a generated cover page. */
+export const PILOT = { draft: pilotDraft, fileName: "Pilot-Agreement-Acme-Inc-Globex-LLC.docx" };
+
+export type ChatRequest = { messages: ChatMessage[]; draft: Draft; today: string };
 
 /** What the fake AI does with one request: answer, or fail with an HTTP status. */
-type FakeAnswer = { reply: string; values: NdaValues } | { status: number; detail: string };
+type FakeAnswer = { reply: string; draft: Draft } | { status: number; detail: string };
 
 /**
  * Replaces the AI with scripted answers, one per message, so tests are fast and repeatable.
@@ -95,8 +90,8 @@ export async function say(page: Page, text: string, reply?: string) {
   if (reply) await expect(conversation(page).getByText(reply)).toBeVisible();
 }
 
-/** Has the fake AI fill in the whole agreement with `AGREEMENT` in one message. */
-export async function fillByChat(page: Page) {
-  await fakeAi(page, { reply: "All done! You can download your NDA now.", values: AGREEMENT.values });
-  await say(page, "Here are all the details.", "All done! You can download your NDA now.");
+/** Has the fake AI fill in a whole document (the NDA unless told otherwise) in one message. */
+export async function fillByChat(page: Page, draft: Draft = AGREEMENT.draft) {
+  await fakeAi(page, { reply: "All done! You can download it now.", draft });
+  await say(page, "Here are all the details.", "All done! You can download it now.");
 }

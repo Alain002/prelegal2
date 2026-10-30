@@ -2,15 +2,15 @@
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useChat } from "@/lib/chat/useChat";
-import type { NdaValues } from "@/lib/nda/types";
+import type { Draft } from "@/lib/documents/types";
 
 // Matches the backend's limit on one message (MAX_MESSAGE_LENGTH in backend/app/routers/chat.py).
 const MAX_LENGTH = 4000;
 
-/** The AI chat that fills in the agreement. */
-export function Chat({ values, onValues }: { values: NdaValues; onValues: (values: NdaValues) => void }) {
-  const { messages, pending, error, send, retry } = useChat(values, onValues);
-  const [draft, setDraft] = useState("");
+/** The AI chat that chooses the document and fills it in. */
+export function Chat({ draft, onDraft }: { draft: Draft; onDraft: (draft: Draft) => void }) {
+  const { messages, pending, error, send, retry } = useChat(draft, onDraft);
+  const [text, setText] = useState("");
   const logRef = useRef<HTMLDivElement>(null);
 
   // Keep the newest message in view.
@@ -20,7 +20,7 @@ export function Chat({ values, onValues }: { values: NdaValues; onValues: (value
   }, [messages, pending, error]);
 
   function submit() {
-    if (send(draft)) setDraft("");
+    if (send(text)) setText("");
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -80,15 +80,15 @@ export function Chat({ values, onValues }: { values: NdaValues; onValues: (value
           id="chat-message"
           rows={2}
           maxLength={MAX_LENGTH}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type your answer…"
           className="min-h-[2.75rem] flex-1 resize-none rounded-md border border-neutral-300 px-3 py-2 text-sm text-neutral-900 placeholder:text-neutral-500 focus:border-brand-blue focus:outline-none focus:ring-2 focus:ring-brand-blue/40"
         />
         <button
           type="submit"
-          disabled={pending || !draft.trim()}
+          disabled={pending || !text.trim()}
           className="rounded-md bg-brand-purple px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-purple/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-blue disabled:cursor-not-allowed disabled:opacity-60"
         >
           Send
