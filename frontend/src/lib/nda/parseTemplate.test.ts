@@ -54,6 +54,33 @@ describe("parseInline", () => {
       { kind: "text", text: "”)" },
     ]);
   });
+
+  it("reads every kind of defined-term span, with or without an id", () => {
+    expect(
+      parseInline('<span class="keyterms_link">Fees</span>, <span class="orderform_link" id="5.5.a">Customer</span>'),
+    ).toEqual([
+      { kind: "term", text: "Fees" },
+      { kind: "text", text: ", " },
+      { kind: "term", text: "Customer" },
+    ]);
+  });
+
+  it("keeps defined terms inside bold passages", () => {
+    expect(parseInline('**Each <span class="keyterms_link">Provider</span> may.**')).toEqual([
+      { kind: "bold", text: "Each " },
+      { kind: "term", text: "Provider" },
+      { kind: "bold", text: " may." },
+    ]);
+  });
+
+  it("turns bare links into links, and adds https:// where a link lacks it", () => {
+    expect(parseInline("at <https://commonpaper.com/x>.")).toEqual([
+      { kind: "text", text: "at " },
+      { kind: "link", text: "https://commonpaper.com/x", href: "https://commonpaper.com/x" },
+      { kind: "text", text: "." },
+    ]);
+    expect(parseInline("[site](commonpaper.com/y)")).toEqual([{ kind: "link", text: "site", href: "https://commonpaper.com/y" }]);
+  });
 });
 
 describe("parseStandardTerms", () => {

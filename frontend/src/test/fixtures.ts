@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { loadDocuments } from "@/lib/documents/loadDocuments";
+import { toNdaValues } from "@/lib/documents/buildDocument";
 import { parseCoverIntro, parseStandardTerms } from "@/lib/nda/parseTemplate";
 import type { NdaTemplate, NdaValues } from "@/lib/nda/types";
 
@@ -35,3 +37,17 @@ export const filledValues: NdaValues = {
     { name: "Alan Turing", title: "CTO", company: "Globex, LLC", noticeAddress: "1 Main St\nWilmington, DE" },
   ],
 };
+
+export { ndaDraft, pilotDraft } from "./drafts";
+
+/** NDA values with nothing filled in yet. */
+export const blankNdaValues = toNdaValues({});
+
+/** documents.json as written, including what the page doesn't load (defaults and hints for the AI). */
+export const registry: { documents: { id: string; fields: { key: string; default?: string }[] }[] } = JSON.parse(
+  readFileSync(path.resolve(import.meta.dirname, "../../../documents.json"), "utf-8"),
+);
+
+/** Every document, loaded the same way the page does at build time. */
+export const documents = loadDocuments();
+export const documentInfo = (id: string) => documents.find((d) => d.id === id)!;

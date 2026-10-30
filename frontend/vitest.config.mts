@@ -8,7 +8,13 @@ process.env.TZ = "America/Los_Angeles";
 
 export default defineConfig({
   plugins: [react()],
-  resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
+  resolve: {
+    alias: {
+      "@": path.resolve(import.meta.dirname, "src"),
+      // Next.js supplies "server-only" itself. Tests run the build-time loaders directly in Node.
+      "server-only": path.resolve(import.meta.dirname, "src/test/server-only.ts"),
+    },
+  },
   test: {
     // Logic tests run in Node; component tests opt into jsdom with a
     // `// @vitest-environment jsdom` comment at the top of the file.

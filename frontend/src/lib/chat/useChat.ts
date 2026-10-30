@@ -1,21 +1,21 @@
 import { useState } from "react";
-import type { NdaValues } from "@/lib/nda/types";
+import type { Draft } from "@/lib/documents/types";
 import { sendChat, type ChatMessage } from "./api";
 
 /**
- * How many recent messages are sent to the AI. The current values already hold everything
+ * How many recent messages are sent to the AI. The current draft already holds everything
  * agreed so far, and the cap keeps long conversations within the backend's limit (60).
  */
 export const MAX_HISTORY = 40;
 
 export const GREETING =
-  "Hi! I'll help you draft a Mutual Non-Disclosure Agreement. To start, who are the two parties, and what will they be sharing confidential information for?";
+  "Hi! I can help you draft a legal agreement, such as a Mutual NDA, a Cloud Service Agreement or a Pilot Agreement. What would you like to create, and who is it between?";
 
 /**
  * The conversation with the AI. It lives only in the browser: each turn sends the whole
- * conversation and the current agreement, and applies the values the AI sends back.
+ * conversation and the current draft, and applies the draft the AI sends back.
  */
-export function useChat(values: NdaValues, onValues: (values: NdaValues) => void) {
+export function useChat(draft: Draft, onDraft: (draft: Draft) => void) {
   const [messages, setMessages] = useState<ChatMessage[]>([{ role: "assistant", content: GREETING }]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,9 +24,9 @@ export function useChat(values: NdaValues, onValues: (values: NdaValues) => void
     setPending(true);
     setError(null);
     try {
-      const turn = await sendChat(history.slice(-MAX_HISTORY), values);
+      const turn = await sendChat(history.slice(-MAX_HISTORY), draft);
       setMessages([...history, { role: "assistant", content: turn.reply }]);
-      onValues(turn.values);
+      onDraft(turn.draft);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

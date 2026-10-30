@@ -1,6 +1,6 @@
 # Testing the Prelegal frontend
 
-Run everything from the `frontend/` directory. The tests read the templates in `../templates`, so check out the whole repository. The end-to-end tests also run the backend, so they need [uv](https://docs.astral.sh/uv/). The backend's own tests are described in the [root README](../README.md#tests).
+Run everything from the `frontend/` directory. The tests read `../documents.json` and the templates in `../templates`, so check out the whole repository. The end-to-end tests also run the backend, so they need [uv](https://docs.astral.sh/uv/). The backend's own tests are described in the [root README](../README.md#tests).
 
 | Command            | Runs                                                      |
 | ------------------ | --------------------------------------------------------- |
@@ -22,9 +22,11 @@ Run everything from the `frontend/` directory. The tests read the templates in `
 
 - **Component tests** opt into a simulated browser (jsdom) with a `// @vitest-environment jsdom` comment at the top of the file. Logic tests run in plain Node.
 - **Shared test code** lives in `src/test/`:
-  - `fixtures.ts`: the parsed real templates and a fully filled-in agreement.
+  - `fixtures.ts`: the real documents and templates, parsed as the app does, and filled-in NDA values.
+  - `drafts.ts`: filled-in drafts (an NDA and a Pilot Agreement), shared with the end-to-end tests.
   - `queries.ts`: shared lookups, e.g. the preview.
   - `setup.ts`: cleanup after each test.
+  - `server-only.ts`: stands in for Next's `server-only` guard, so tests can run the build-time loaders.
   - `router.ts`: a stand-in for Next's router, for components that navigate.
 - **Timezone:** Vitest runs in the `America/Los_Angeles` timezone (set in `vitest.config.mts`). Date code that wrongly uses UTC then fails on every machine, not just some.
 - **End-to-end tests** build the static export and serve it with the FastAPI backend on port 3100, with a fresh empty database, for each run. This is the same setup as the Docker image.
@@ -48,7 +50,7 @@ Run everything from the `frontend/` directory. The tests read the templates in `
 
 ### Sign-in form: `src/components/LoginForm.test.tsx`
 
-- Any email and password sign in and go to the NDA creator.
+- Any email and password sign in and go to the drafting page.
 - Both fields are required, and the email must look like one.
 - Already signed-in users skip the form.
 
@@ -56,6 +58,13 @@ Run everything from the `frontend/` directory. The tests read the templates in `
 
 - **Guard:** signed-in users see the page. Signed-out visitors are sent to the sign-in page without seeing it, including right after signing out.
 - **Header:** it shows the product name and the signed-in email, and Sign out signs out and returns to the sign-in page.
+
+### Standard Terms of the other documents: `src/lib/documents/parseTerms.test.ts`
+
+- **Numbering:** clauses are numbered by position as 1., 1.1, (a) and (i), since the templates write every item as "1.".
+- **Markup:** titles, defined terms, bold passages with terms inside them, bare links and a link missing `https://` are all read correctly; cross-reference anchors are dropped.
+- **Every real template:** each of the 10 parses into titled sections with no markup left over. The Cloud Service Agreement's 13 sections and the DPA's roman sub-clauses are checked in detail.
+- **Errors:** text outside the list, odd indents and skipped levels fail loudly.
 
 ### Template parsing: `src/lib/nda/parseTemplate.test.ts`
 
@@ -88,10 +97,17 @@ The cover page is generated in code. These tests check that its wording comes fr
 - **Links and text:** working hyperlinks, real Word line breaks, and escaped special characters.
 - **Page break:** the Standard Terms start on a new page.
 
-### Defaults: `src/lib/nda/defaults.test.ts`
+### The other documents: `src/lib/documents/buildDocument.test.ts`, `toDocx.test.ts`
 
-- **Date:** today's date uses the local calendar day, checked at 23:59 when the UTC date is already tomorrow.
-- **Starting values:** both terms start at one year, and each party gets its own object.
+- **Cover page:** the parties with their roles, then every key term: the answer, `None` for a skipped optional term, or a `[placeholder]` for a missing essential one. Dates are written out.
+- **Signature table:** one column per role (e.g. PROVIDER, CUSTOMER).
+- **Attribution:** credits Common Paper, links the CC BY 4.0 licence, and says what Prelegal changed.
+- **File names**, and **`toNdaValues`**, which turns an NDA draft into the NDA's own values.
+- **Word export:** the cover page, numbered and indented Standard Terms on a new page, and links. A file is built for each of the 10 documents.
+
+### Today's date: `src/lib/today.test.ts`
+
+- Uses the local calendar day, checked at 23:59 when the UTC date is already tomorrow.
 
 ### The preview: `src/components/NdaPreview.test.tsx`
 
@@ -100,64 +116,71 @@ The cover page is generated in code. These tests check that its wording comes fr
 - **Cover page references:** they stay as defined terms, as Common Paper intends, rather than having values filled in.
 - **Safety:** links open safely in a new tab, and user input is shown as text, never run as HTML.
 
+### The other documents' preview: `src/components/DocumentPreview.test.tsx`
+
+- The title, every key term, numbered sections, clauses and sub-clauses, highlighted defined terms, and the licence link.
+
 ### Chat requests: `src/lib/chat/api.test.ts`
 
-- **Request:** posts the whole conversation and the current values to `/api/chat`, and returns the reply and updated values.
+- **Request:** posts the whole conversation, the current draft and the user's local date to `/api/chat`, and returns the reply and the updated draft.
 - **Errors:**
   - When the AI is unavailable (502), it shows the backend's message, which is written for users.
-  - Anything else gets a generic message. That covers validation errors, server errors, and malformed answers, including the wrong number of parties.
+  - Anything else gets a generic message. That covers validation errors, server errors, and malformed answers, including a draft without fields or with a bad document id.
   - A network failure says the server can't be reached.
 
 ### The chat: `src/components/Chat.test.tsx` (the AI is faked)
 
 - **Greeting:** the assistant speaks first, and Send is disabled until something is typed.
-- **Sending:** sends the conversation so far, including the greeting, and the current values. It then shows the reply, clears the box and passes the new values up.
+- **Sending:** sends the conversation so far, including the greeting, and the current draft. It then shows the reply, clears the box and passes the new draft up.
 - **Keyboard:** Enter sends, and Shift+Enter adds a new line. Blank messages aren't sent.
 - **Waiting:** "Assistant is typing…" shows while waiting, and nothing more can be sent until the reply arrives.
 - **Errors:** an alert shows the error. **Try again** resends without repeating the user's message, and the alert goes away.
 - **Screen readers:** each message is labelled "You:" or "Assistant:".
 - **Long conversations:** only the latest 40 messages are sent, so the backend's limit is never reached. The whole conversation stays on screen.
 
-### The page: `src/components/NdaCreator.test.tsx` (the AI is faked)
+### The page: `src/components/DraftCreator.test.tsx` (the AI is faked)
 
-- **Date default:** the Effective Date defaults to today in the user's timezone, and that date is sent to the AI.
-- **Live preview:** the preview fills in from the AI's answers, and each message sends the latest values.
+- **Before a document is chosen:** the preview lists the 11 documents, and the downloads are disabled.
+- **Live preview:** the NDA shows with its own cover page, and any other document with a generated cover page and its Standard Terms. Switching document switches the preview, and each message sends the latest draft.
 - **Download PDF:** opens the print dialog.
 - **Download Word:**
-  - It downloads exactly the file the exporter produced, named after the companies.
+  - It downloads exactly the file the right exporter produced (the NDA's or the other documents'), named after the document and the companies.
   - It cleans up the temporary link and releases the file's memory after a delay.
   - A busy state shows while the file is prepared.
   - An error message appears if export fails, and a retry can succeed.
 
-### End-to-end: `e2e/nda-creator.spec.ts` (production build in a real browser, AI faked)
+### End-to-end: `e2e/drafting.spec.ts` (production build in a real browser, AI faked)
 
 The tests replace the AI with scripted answers (`fakeAi` in `e2e/helpers.ts`), so they are fast and repeatable. The backend's chat endpoint and the real model are tested in `backend/tests` (see the [root README](../README.md#tests)).
 
 | Test                                                                 | Desktop | Mobile (Pixel 7) |
 | -------------------------------------------------------------------- | :-----: | :--------------: |
-| Opens with the assistant's greeting and a default agreement          |    ✓    |        ✓         |
-| Fills in the agreement as the conversation goes, sending the history and values each time |    ✓    |                  |
-| Shows every detail the AI filled in                                  |    ✓    |                  |
+| Opens with the assistant's greeting and the list of documents, downloads disabled |    ✓    |        ✓         |
+| Keeps the list while the assistant works out which document is needed (e.g. an unsupported one) |    ✓    |                  |
+| Picks the NDA and fills it in as the conversation goes, sending the history, draft and date each time |    ✓    |                  |
+| Shows every detail of the NDA                                        |    ✓    |                  |
+| Drafts another document (Pilot Agreement) with a generated cover page, full Standard Terms and a Word file |    ✓    |                  |
+| Switches document mid-conversation                                   |    ✓    |                  |
 | Shows an error when the AI is unavailable, and Try again recovers    |    ✓    |                  |
 | Shows that the assistant is typing                                   |    ✓    |                  |
-| Downloads a Word file and checks its contents                        |    ✓    |                  |
+| Downloads the NDA as a Word file and checks its contents             |    ✓    |                  |
 | Download PDF opens the print dialog                                  |    ✓    |                  |
-| Prints only the agreement, and the generated PDF has several pages   |    ✓    |                  |
-| No accessibility violations (axe, WCAG 2.1 AA) before and after a reply |    ✓    |        ✓         |
-| Moves through the controls in order with Tab, and Enter sends        |    ✓    |                  |
+| Prints only the agreement over several pages, for the NDA and for a generated document |    ✓    |                  |
+| No accessibility violations (axe, WCAG 2.1 AA) at the start, on the NDA and on a generated document |    ✓    |        ✓         |
+| Moves through the controls in order with Tab (downloads skipped until there is a document), and Enter sends |    ✓    |                  |
 | Layout: chat beside the preview on desktop (message box on screen), stacked on mobile, no sideways scrolling |    ✓    |        ✓         |
 
 ### End-to-end: `e2e/platform.spec.ts` (sign-in and backend)
 
 | Test                                                                 | Desktop | Mobile (Pixel 7) |
 | -------------------------------------------------------------------- | :-----: | :--------------: |
-| Signs in with any email and password and lands in the NDA creator    |    ✓    |        ✓         |
+| Signs in with any email and password and lands on the drafting page  |    ✓    |        ✓         |
 | Requires an email and a password                                     |    ✓    |                  |
-| Sends signed-out visitors from the NDA creator to the sign-in page   |    ✓    |                  |
+| Sends signed-out visitors from the drafting page to the sign-in page |    ✓    |                  |
 | Stays signed in across reloads and skips the sign-in page            |    ✓    |                  |
 | Signs out back to the sign-in page                                   |    ✓    |                  |
 | No accessibility violations on the sign-in page                      |    ✓    |        ✓         |
-| Backend: health check, `/nda` redirects to `/nda/`, unknown pages get a 404 |    ✓    |                  |
+| Backend: health check, `/draft` redirects to `/draft/`, unknown pages get a 404 |    ✓    |                  |
 
 All end-to-end tests also fail on any console error.
 
@@ -167,26 +190,32 @@ Run these against the Docker container (`scripts/start-*`) with a real `OPENROUT
 
 | #   | Area          | Steps                                                                                                    | Expected                                                                                                                     |
 | --- | ------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| M0  | Sign in       | Open the app, sign in with any email and password, then sign out and open `/nda/` directly.              | The NDA creator opens with your email in the header. After signing out, `/nda/` sends you back to the sign-in page.          |
-| M1  | First load    | Sign in.                                                                                                 | Chat beside the agreement, starting with the assistant's greeting. Effective Date is today, terms are 1 year, Purpose has the default text. |
-| M2  | Conversation  | Answer the assistant's questions in your own words until it says the agreement is complete.             | It asks about the parties, purpose, terms, governing law and jurisdiction. Each answer appears in the preview, and it never invents names or addresses. |
-| M3  | Several at once | Give both parties, the purpose and the governing law in one message.                                   | All of them are filled in from that one message.                                                                             |
-| M4  | Changes       | Ask to change something already filled in, e.g. "make it 3 years" or "the purpose is a merger".          | Only that field changes.                                                                                                     |
-| M5  | Terms         | Ask for the NDA to continue until terminated and for confidentiality in perpetuity, then back to years.  | The wording in the preview changes each time.                                                                                |
-| M6  | Unusual input | Use a very long company name, `Zoë O'Brien-Müller`, `&`, `<b>x</b>`, and a two-line address.              | Long text wraps in the table, special characters display correctly, HTML shows as plain text, and the line break is kept.    |
-| M7  | Off topic     | Ask for a different document, or ask the assistant to ignore its instructions.                           | It politely says only the Mutual NDA is supported and steers back to the NDA.                                                |
-| M8  | AI down       | Stop the container, remove the key from `.env`, start it again, and send a message.                      | A friendly error with **Try again**. Nothing else breaks.                                                                    |
-| M9  | Keyboard      | Tab through the whole page, and use Enter and Shift+Enter in the message box.                            | Logical order, with a visible focus ring on every control. Enter sends, and Shift+Enter adds a line.                         |
-| M10 | Mobile        | Use a phone, or DevTools device mode.                                                                    | Chat above the preview, no sideways scrolling, buttons easy to tap.                                                          |
-| M11 | Save as PDF   | Finish a conversation, click **Download PDF**, choose "Save as PDF", then open the file.                 | Only the agreement appears. The Standard Terms start on a new page, and the signature table isn't split across pages.        |
-| M12 | Word file     | Click **Download Word** and open the file in Microsoft Word (and Google Docs or LibreOffice if available). | Opens without a repair warning. The cover page, signature table, line breaks and links are all correct, and the Standard Terms start on a new page. |
-| M13 | Browsers      | Repeat M1, M2, M11 and M12 in Firefox, Safari and Edge.                                                  | Same behaviour.                                                                                                              |
-| M14 | Reload        | Have a short conversation and reload.                                                                    | The chat and agreement start over. Nothing is saved yet, which is expected for now.                                          |
-| M15 | Console       | Keep DevTools open during M1–M5.                                                                         | No errors or warnings.                                                                                                       |
+| M0  | Sign in       | Open the app, sign in with any email and password, then sign out and open `/draft/` directly. | The drafting page opens with your email in the header. After signing out, `/draft/` sends you back to the sign-in page. |
+| M1  | First load    | Sign in. | Chat beside the list of documents Prelegal can draft, starting with the assistant's greeting. The downloads are disabled. |
+| M2  | Choosing      | Describe what you need without naming a document, e.g. "a customer wants to try our app for 3 months". | It suggests the right document (here the Pilot Agreement) and the preview switches to it. |
+| M3  | Unsupported   | Ask for something Prelegal can't draft, e.g. an employment contract or a lease. | It says it can't draft that, suggests the closest document and why, and asks whether you want it. The preview doesn't change until you agree. |
+| M4  | Conversation  | Answer the questions in your own words until it says the document is complete, for the NDA and for one other document. | Every reply ends with a question while something essential is missing. It asks about the document's terms first and the signers last, mentions the defaults (e.g. Effective Date today), and never invents names or addresses. |
+| M5  | Several at once | Give both parties, a term and the governing law in one message. | All of them are filled in from that one message. |
+| M6  | Changes       | Ask to change something already filled in, e.g. "make it 3 years", or to drop an optional term. | Only that field changes. A dropped optional term shows "None". |
+| M7  | Switching     | Halfway through, ask for a different document. | The preview switches. The companies, signers, effective date and governing law carry over, and it checks who plays which role. |
+| M8  | NDA terms     | Ask for the NDA to continue until terminated and for confidentiality in perpetuity, then back to years. | The wording in the preview changes each time. |
+| M9  | Unusual input | Use a very long company name, `Zoë O'Brien-Müller`, `&`, `<b>x</b>`, and a two-line address. | Long text wraps in the table, special characters display correctly, HTML shows as plain text, and the line break is kept. |
+| M10 | Off topic     | Ask the assistant to ignore its instructions, or to talk about something else. | It stays on drafting the agreement. |
+| M11 | AI down       | Stop the container, remove the key from `.env`, start it again, and send a message. | A friendly error with **Try again**. Nothing else breaks. |
+| M12 | Keyboard      | Tab through the whole page, and use Enter and Shift+Enter in the message box. | Logical order, with a visible focus ring on every control. Enter sends, and Shift+Enter adds a line. |
+| M13 | Mobile        | Use a phone, or DevTools device mode. | Chat above the preview, no sideways scrolling, buttons easy to tap. |
+| M14 | Save as PDF   | For the NDA and one other document: click **Download PDF**, choose "Save as PDF", then open the file. | Only the agreement appears. The Standard Terms start on a new page, and the signature table isn't split across pages. |
+| M15 | Word file     | For the NDA and one other document: click **Download Word** and open the file in Microsoft Word (and Google Docs or LibreOffice if available). | Opens without a repair warning. The cover page, signature table, numbering, indents, line breaks and links are all correct, and the Standard Terms start on a new page. |
+| M16 | Browsers      | Repeat M1, M4, M14 and M15 in Firefox, Safari and Edge. | Same behaviour. |
+| M17 | Reload        | Have a short conversation and reload. | The chat and agreement start over. Nothing is saved yet, which is expected for now. |
+| M18 | Console       | Keep DevTools open during M1 to M8. | No errors or warnings. |
 
 ## Manual test results
 
-### 2026-10-30: Chrome on Windows 11, Docker container, real AI (partial, automated)
+### 2026-10-30: the NDA-only AI chat (KAN-7), Chrome on Windows 11, Docker container, real AI (partial, automated)
+
+The test numbers refer to the plan at that time.
+
 
 | #   | Result  | Notes                                                                                                     |
 | --- | ------- | --------------------------------------------------------------------------------------------------------- |

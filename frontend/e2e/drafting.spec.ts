@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import AxeBuilder from "@axe-core/playwright";
 import JSZip from "jszip";
+import type { Page } from "@playwright/test";
 import {
   AGREEMENT,
   chatPanel,
@@ -10,50 +11,63 @@ import {
   fillByChat,
   messageBox,
   openApp,
+  PILOT,
   preview,
   say,
   test,
 } from "./helpers";
 
-const GREETING = /Hi! I'll help you draft a Mutual Non-Disclosure Agreement/;
+const GREETING = /Hi! I can help you draft a legal agreement/;
 
-test.describe("Mutual NDA Creator", () => {
-  test("opens with the assistant's greeting and a default agreement @mobile", async ({ page }) => {
+/** Clicks Download Word and returns the file name and the document's text. */
+async function downloadWord(page: Page) {
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Download Word" }).click(),
+  ]);
+  const zip = await JSZip.loadAsync(await readFile((await download.path())!));
+  const xml = await zip.file("word/document.xml")!.async("string");
+  return { fileName: download.suggestedFilename(), text: xml.replace(/<w:br\/>/g, "\n").replace(/<[^>]+>/g, "") };
+}
+
+test.describe("drafting an agreement", () => {
+  test("opens with the assistant's greeting and the list of documents @mobile", async ({ page }) => {
     await openApp(page);
 
-    await expect(page).toHaveTitle("Mutual NDA Creator | Prelegal");
-    await expect(page.getByRole("heading", { name: "Mutual NDA Creator" })).toBeVisible();
+    await expect(page).toHaveTitle("Draft an agreement | Prelegal");
+    await expect(page.getByRole("heading", { name: "Draft an agreement" })).toBeVisible();
     await expect(conversation(page).getByText(GREETING)).toBeVisible();
-
-    const doc = preview(page);
-    await expect(
-      doc.getByText("Evaluating whether to enter into a business relationship with the other party."),
-    ).toBeVisible();
-    // Today's date, in the browser's timezone.
-    const today = await page.evaluate(() =>
-      new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
-    );
-    await expect(doc.getByText(today)).toBeVisible();
-    await expect(doc.getByText("Expires 1 year from Effective Date.")).toBeVisible();
-    await expect(doc.getByText("Governing Law: [Governing Law]")).toBeVisible();
-    await expect(doc.getByRole("listitem")).toHaveCount(11);
+    const documents = preview(page).getByRole("listitem");
+    await expect(documents).toHaveCount(11);
+    await expect(documents.first()).toHaveText("Mutual Non-Disclosure Agreement");
+    await expect(page.getByRole("button", { name: "Download PDF" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Download Word" })).toBeDisabled();
   });
 
-  test("fills in the agreement as the conversation goes", async ({ page }) => {
+  test("keeps the list while the assistant works out which document is needed", async ({ page }) => {
     await openApp(page);
-    const afterFirst = {
-      ...AGREEMENT.values,
-      governingLaw: "",
-      parties: [AGREEMENT.values.parties[0], { company: "", name: "", title: "", noticeAddress: "" }],
-    } satisfies typeof AGREEMENT.values;
+    await fakeAi(page, {
+      reply: "Prelegal can't draft employment contracts. The closest is a Professional Services Agreement. Would that work?",
+      draft: { documentId: null, fields: {} },
+    });
+    await say(page, "I need an employment contract.", "Would that work?");
+    await expect(preview(page).getByRole("heading", { name: "Your agreement will appear here" })).toBeVisible();
+  });
+
+  test("picks the NDA and fills it in as the conversation goes", async ({ page }) => {
+    await openApp(page);
+    // Before the second message, the other party and the governing law are still missing.
+    const fields = Object.entries(AGREEMENT.draft.fields).filter(([key]) => key !== "party2Company" && key !== "governingLaw");
+    const afterFirst = { documentId: "mutual-nda", fields: Object.fromEntries(fields) };
     const requests = await fakeAi(
       page,
-      { reply: "Thanks! Who is the other party?", values: afterFirst },
-      { reply: "Got it. Everything is filled in.", values: AGREEMENT.values },
+      { reply: "An NDA it is. Who is the other party?", draft: afterFirst },
+      { reply: "Got it. Everything is filled in.", draft: AGREEMENT.draft },
     );
     const doc = preview(page);
 
-    await say(page, "We are Acme Inc., represented by Ada Lovelace.", "Thanks! Who is the other party?");
+    await say(page, "An NDA. We are Acme Inc., represented by Ada Lovelace.", "Who is the other party?");
+    await expect(doc.getByRole("heading", { level: 1, name: "Mutual Non-Disclosure Agreement" })).toBeVisible();
     await expect(doc.getByRole("cell", { name: "Acme Inc." })).toBeVisible();
     await expect(doc.getByText("Governing Law: [Governing Law]")).toBeVisible();
 
@@ -61,33 +75,79 @@ test.describe("Mutual NDA Creator", () => {
     await expect(doc.getByRole("cell", { name: "Globex, LLC" })).toBeVisible();
     await expect(doc.getByText("Governing Law: Delaware")).toBeVisible();
 
-    // Each message carries the whole conversation and the agreement as it stood.
+    // Each message carries the whole conversation, the draft as it stood, and the user's date.
+    expect(requests[0].draft).toEqual({ documentId: null, fields: {} });
     expect(requests[1].messages.map((m) => m.role)).toEqual(["assistant", "user", "assistant", "user"]);
     expect(requests[1].messages.at(-1)?.content).toBe("Globex, LLC. Delaware law.");
-    expect(requests[1].values).toEqual(afterFirst);
+    expect(requests[1].draft).toEqual(afterFirst);
+    const today = await page.evaluate(() => new Date().toLocaleDateString("en-CA"));
+    expect(requests[1].today).toBe(today);
     await expect(messageBox(page)).toHaveValue("");
   });
 
-  test("shows every detail the AI filled in", async ({ page }) => {
+  test("shows every detail of the NDA", async ({ page }) => {
     await openApp(page);
     await fillByChat(page);
     const doc = preview(page);
-    const v = AGREEMENT.values;
+    const f = AGREEMENT.draft.fields;
 
-    await expect(doc.getByText(v.purpose)).toBeVisible();
+    await expect(doc.getByText(f.purpose)).toBeVisible();
     await expect(doc.getByText(AGREEMENT.effectiveDateText)).toBeVisible();
     await expect(doc.getByText("Expires 2 years from Effective Date.")).toBeVisible();
-    await expect(doc.getByText(/^5 years from Effective Date, but/)).toBeVisible();
-    await expect(doc.getByText(`Governing Law: ${v.governingLaw}`)).toBeVisible();
-    await expect(doc.getByText(`Jurisdiction: ${v.jurisdiction}`)).toBeVisible();
-    await expect(doc.getByText(/^Section 8 does not apply\./)).toHaveText(v.modifications);
+    await expect(doc.getByText(/^3 years from Effective Date, but/)).toBeVisible();
+    await expect(doc.getByText(`Governing Law: ${f.governingLaw}`)).toBeVisible();
+    await expect(doc.getByText(`Jurisdiction: ${f.chosenCourts}`)).toBeVisible();
+    await expect(doc.getByText(/^Section 8 does not apply\./)).toHaveText(f.modifications);
+    await expect(doc.getByRole("listitem")).toHaveCount(11);
 
     const table = doc.getByRole("table");
-    for (const p of v.parties) {
-      for (const value of [p.company, p.name, p.title, p.noticeAddress]) {
+    for (const n of [1, 2] as const) {
+      for (const detail of ["Company", "Name", "Title", "NoticeAddress"]) {
+        const value = f[`party${n}${detail}` as keyof typeof f];
         await expect(table.getByRole("cell", { name: value.split("\n")[0] })).toHaveText(value);
       }
     }
+  });
+
+  test("drafts other documents with a generated cover page and the full Standard Terms", async ({ page }) => {
+    await openApp(page);
+    await fillByChat(page, PILOT.draft);
+    const doc = preview(page);
+
+    await expect(doc.getByRole("heading", { level: 1, name: "Pilot Agreement" })).toBeVisible();
+    await expect(doc.getByText("Provider: Acme Inc.")).toBeVisible();
+    await expect(doc.getByText("Customer: Globex LLC")).toBeVisible();
+    await expect(doc.getByRole("heading", { level: 3, name: "Pilot Period" })).toBeVisible();
+    await expect(doc.getByText("90 days")).toBeVisible();
+    await expect(doc.getByText("November 1, 2026")).toBeVisible();
+    // An optional term that wasn't filled in.
+    await expect(doc.getByRole("heading", { level: 3, name: "Fees" }).locator("+ p")).toHaveText("None");
+    await expect(doc.getByRole("columnheader", { name: "PROVIDER" })).toBeVisible();
+    await expect(doc.getByRole("heading", { level: 3, name: "1. Pilot Access" })).toBeVisible();
+    await expect(doc.getByRole("heading", { level: 3, name: "8. Definitions" })).toBeVisible();
+
+    const word = await downloadWord(page);
+    expect(word.fileName).toBe(PILOT.fileName);
+    for (const expected of ["Pilot Agreement", "Provider: Acme Inc.", "90 days", "Ada Lovelace", "1. Pilot Access", "2.1 ", "Changes: Prelegal added this Cover Page"]) {
+      expect(word.text).toContain(expected);
+    }
+  });
+
+  test("switches document mid-conversation", async ({ page }) => {
+    await openApp(page);
+    const nda = { documentId: "mutual-nda", fields: { party1Company: "Acme Inc.", party2Company: "Globex LLC" } };
+    const requests = await fakeAi(
+      page,
+      { reply: "A Pilot Agreement, then.", draft: PILOT.draft },
+      { reply: "Switched to the NDA.", draft: nda },
+    );
+    await say(page, "A pilot for Globex.", "A Pilot Agreement, then.");
+    await expect(preview(page).getByRole("heading", { level: 1, name: "Pilot Agreement" })).toBeVisible();
+
+    await say(page, "Actually we need an NDA first.", "Switched to the NDA.");
+    await expect(preview(page).getByRole("heading", { level: 1, name: "Mutual Non-Disclosure Agreement" })).toBeVisible();
+    await expect(preview(page).getByRole("cell", { name: "Globex LLC" })).toBeVisible();
+    expect(requests[1].draft).toEqual(PILOT.draft);
   });
 
   test("shows an error when the AI is unavailable, and Try again recovers", async ({ page, consoleErrors }) => {
@@ -95,10 +155,10 @@ test.describe("Mutual NDA Creator", () => {
     await fakeAi(
       page,
       { status: 502, detail: "The AI assistant is unavailable right now. Please try again." },
-      { reply: "Thanks! Who signs for Acme?", values: AGREEMENT.values },
+      { reply: "Thanks! Who signs for Acme?", draft: AGREEMENT.draft },
     );
 
-    await say(page, "We are Acme Inc.");
+    await say(page, "An NDA for Acme Inc.");
     await expect(chatPanel(page).getByRole("alert")).toContainText("The AI assistant is unavailable right now.");
     // The browser logs the failed request itself; that one is expected.
     expect(consoleErrors).toEqual([expect.stringContaining("502")]);
@@ -107,7 +167,7 @@ test.describe("Mutual NDA Creator", () => {
     await page.getByRole("button", { name: "Try again" }).click();
     await expect(conversation(page).getByText("Thanks! Who signs for Acme?")).toBeVisible();
     await expect(chatPanel(page).getByRole("alert")).toHaveCount(0);
-    await expect(conversation(page).getByText("We are Acme Inc.")).toHaveCount(1);
+    await expect(conversation(page).getByText("An NDA for Acme Inc.")).toHaveCount(1);
     await expect(preview(page).getByRole("cell", { name: "Acme Inc." })).toBeVisible();
   });
 
@@ -117,7 +177,7 @@ test.describe("Mutual NDA Creator", () => {
     const answered = new Promise<void>((resolve) => (answer = resolve));
     await page.route("**/api/chat", async (route) => {
       await answered;
-      await route.fulfill({ json: { reply: "Done.", values: AGREEMENT.values } });
+      await route.fulfill({ json: { reply: "Done.", draft: AGREEMENT.draft } });
     });
 
     await say(page, "Hello");
@@ -129,27 +189,23 @@ test.describe("Mutual NDA Creator", () => {
     await expect(page.getByRole("status")).toHaveCount(0);
   });
 
-  test("downloads a complete Word document", async ({ page }) => {
+  test("downloads a complete NDA as a Word document", async ({ page }) => {
     await openApp(page);
     await fillByChat(page);
 
-    const [download] = await Promise.all([
-      page.waitForEvent("download"),
-      page.getByRole("button", { name: "Download Word" }).click(),
-    ]);
-    expect(download.suggestedFilename()).toBe(AGREEMENT.fileName);
-
-    const zip = await JSZip.loadAsync(await readFile((await download.path())!));
-    const xml = await zip.file("word/document.xml")!.async("string");
-    const text = xml.replace(/<w:br\/>/g, "\n").replace(/<[^>]+>/g, "");
+    const word = await downloadWord(page);
+    expect(word.fileName).toBe(AGREEMENT.fileName);
+    const f = AGREEMENT.draft.fields;
     for (const expected of [
       "Mutual Non-Disclosure Agreement",
       AGREEMENT.effectiveDateText,
-      `Governing Law: ${AGREEMENT.values.governingLaw}`,
-      ...AGREEMENT.values.parties.flatMap((p) => [p.company, p.name, p.noticeAddress]),
+      `Governing Law: ${f.governingLaw}`,
+      f.party1Company,
+      f.party2Name,
+      f.party2NoticeAddress,
       "11. General. ",
     ]) {
-      expect(text).toContain(expected);
+      expect(word.text).toContain(expected);
     }
     await expect(page.getByRole("button", { name: "Download Word" })).toBeEnabled();
   });
@@ -161,26 +217,32 @@ test.describe("Mutual NDA Creator", () => {
       window.print = () => (window as unknown as { recordPrint: () => void }).recordPrint();
     });
     await openApp(page);
+    await fillByChat(page, PILOT.draft);
     await page.getByRole("button", { name: "Download PDF" }).click();
     await expect.poll(() => prints).toBe(1);
   });
 
-  test("prints only the agreement, across several pages", async ({ page }) => {
-    await openApp(page);
-    await fillByChat(page);
-    await page.emulateMedia({ media: "print" });
+  for (const [name, draft, title] of [
+    ["the NDA", AGREEMENT.draft, "Mutual Non-Disclosure Agreement"],
+    ["a generated document", PILOT.draft, "Pilot Agreement"],
+  ] as const) {
+    test(`prints only ${name}, across several pages`, async ({ page }) => {
+      await openApp(page);
+      await fillByChat(page, draft);
+      await page.emulateMedia({ media: "print" });
 
-    await expect(page.getByRole("button", { name: "Download PDF" })).toBeHidden();
-    await expect(page.getByRole("button", { name: "Sign out" })).toBeHidden();
-    await expect(page.getByRole("heading", { name: "Mutual NDA Creator" })).toBeHidden();
-    await expect(conversation(page)).toBeHidden();
-    await expect(preview(page).getByRole("heading", { name: "Mutual Non-Disclosure Agreement" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Download PDF" })).toBeHidden();
+      await expect(page.getByRole("button", { name: "Sign out" })).toBeHidden();
+      await expect(page.getByRole("heading", { name: "Draft an agreement" })).toBeHidden();
+      await expect(conversation(page)).toBeHidden();
+      await expect(preview(page).getByRole("heading", { level: 1, name: title })).toBeVisible();
 
-    // Generate the real PDF. The cover page and the Standard Terms need at least two Letter pages.
-    const pdf = await page.pdf({ format: "Letter", preferCSSPageSize: true });
-    const pages = pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? [];
-    expect(pages.length).toBeGreaterThanOrEqual(2);
-  });
+      // Generate the real PDF. The cover page and the Standard Terms need at least two Letter pages.
+      const pdf = await page.pdf({ format: "Letter", preferCSSPageSize: true });
+      const pages = pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? [];
+      expect(pages.length).toBeGreaterThanOrEqual(2);
+    });
+  }
 
   test("has no detectable accessibility violations @mobile", async ({ page }) => {
     await openApp(page);
@@ -190,22 +252,21 @@ test.describe("Mutual NDA Creator", () => {
     };
     expect(await scan(), "new conversation").toEqual([]);
 
-    await fillByChat(page);
-    expect(await scan(), "after a reply").toEqual([]);
+    await fakeAi(page, { reply: "An NDA.", draft: AGREEMENT.draft }, { reply: "A pilot.", draft: PILOT.draft });
+    await say(page, "An NDA", "An NDA.");
+    expect(await scan(), "the NDA").toEqual([]);
+    await say(page, "A pilot", "A pilot.");
+    expect(await scan(), "a generated document").toEqual([]);
   });
 
   test("moves through the controls in order with the Tab key, and Enter sends", async ({ page }) => {
     await openApp(page);
-    await fakeAi(page, { reply: "Thanks!", values: AGREEMENT.values });
-    // Start from the top of the page, as a keyboard user would.
+    await fakeAi(page, { reply: "Thanks!", draft: AGREEMENT.draft });
+    // Start from the top of the page, as a keyboard user would. The downloads are disabled
+    // until there is a document, so they are skipped.
     await page.locator("body").focus();
 
-    for (const control of [
-      page.getByRole("button", { name: "Sign out" }),
-      page.getByRole("button", { name: "Download PDF" }),
-      page.getByRole("button", { name: "Download Word" }),
-      messageBox(page),
-    ]) {
+    for (const control of [page.getByRole("button", { name: "Sign out" }), messageBox(page)]) {
       await page.keyboard.press("Tab");
       await expect(control).toBeFocused();
     }
@@ -221,6 +282,16 @@ test.describe("Mutual NDA Creator", () => {
     await expect(conversation(page).getByText("Thanks!")).toBeVisible();
     await expect(conversation(page).getByText(/We are Acme Inc\.\s+Second line/)).toBeVisible();
     await expect(messageBox(page)).toBeFocused();
+
+    // With a document, the downloads come between Sign out and the message box.
+    for (const control of [
+      page.getByRole("button", { name: "Download Word" }),
+      page.getByRole("button", { name: "Download PDF" }),
+      page.getByRole("button", { name: "Sign out" }),
+    ]) {
+      await page.keyboard.press("Shift+Tab");
+      await expect(control).toBeFocused();
+    }
   });
 });
 
@@ -230,6 +301,7 @@ test.describe("layout @mobile", () => {
     isMobile,
   }) => {
     await openApp(page);
+    await fillByChat(page, PILOT.draft);
     const chat = await messageBox(page).boundingBox();
     const doc = await preview(page).boundingBox();
     expect(chat).not.toBeNull();

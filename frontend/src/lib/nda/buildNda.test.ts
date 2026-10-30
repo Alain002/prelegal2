@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { filledValues, tinyTemplate } from "@/test/fixtures";
-import { buildNda, formatDate, ndaFileName } from "./buildNda";
-import { defaultNdaValues } from "./defaults";
+import { blankNdaValues, filledValues, tinyTemplate } from "@/test/fixtures";
+import { buildNda, formatDate, NDA_CHANGES, ndaFileName } from "./buildNda";
+
 import type { NdaValues } from "./types";
 
 const field = (values: NdaValues, heading: string) =>
@@ -56,8 +56,8 @@ describe("buildNda", () => {
   });
 
   it("uses the singular for one year", () => {
-    expect(field(defaultNdaValues, "MNDA Term")).toEqual(["Expires 1 year from Effective Date."]);
-    expect(field(defaultNdaValues, "Term of Confidentiality")?.[0]).toMatch(/^1 year from Effective Date/);
+    expect(field(blankNdaValues, "MNDA Term")).toEqual(["Expires 1 year from Effective Date."]);
+    expect(field(blankNdaValues, "Term of Confidentiality")?.[0]).toMatch(/^1 year from Effective Date/);
   });
 
   it("supports open-ended and perpetual terms", () => {
@@ -71,7 +71,7 @@ describe("buildNda", () => {
   });
 
   it("shows placeholders for blank or whitespace-only fields", () => {
-    const values: NdaValues = { ...defaultNdaValues, purpose: "  ", governingLaw: "\n", jurisdiction: "" };
+    const values: NdaValues = { ...blankNdaValues, purpose: "  ", governingLaw: "\n", jurisdiction: "" };
     expect(field(values, "Purpose")).toEqual(["[Purpose]"]);
     expect(field(values, "Effective Date")).toEqual(["[Effective Date]"]);
     expect(field(values, "Governing Law & Jurisdiction")).toEqual([
@@ -120,7 +120,7 @@ describe("buildNda", () => {
     const nda = buildNda(filledValues, tinyTemplate);
     expect(nda.clauses).toBe(tinyTemplate.clauses);
     expect(nda.coverIntro).toBe(tinyTemplate.coverIntro);
-    expect(nda.attribution).toBe(tinyTemplate.attribution);
+    expect(nda.attribution).toEqual([...tinyTemplate.attribution, { kind: "text", text: ` ${NDA_CHANGES}` }]);
   });
 
   it("does not modify the input values", () => {
@@ -152,6 +152,6 @@ describe("ndaFileName", () => {
   });
 
   it("falls back to a generic name", () => {
-    expect(ndaFileName(defaultNdaValues)).toBe("Mutual-NDA");
+    expect(ndaFileName(blankNdaValues)).toBe("Mutual-NDA");
   });
 });

@@ -17,7 +17,7 @@ export function LoginForm() {
 
   // Signed in (just now, or on an earlier visit): go into the platform.
   useEffect(() => {
-    if (state.status === "authenticated") router.replace("/nda/");
+    if (state.status === "authenticated") router.replace("/draft/");
   }, [state.status, router]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
