@@ -3,14 +3,19 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { NdaDocument } from "@/lib/nda/types";
-import { realTemplate } from "@/test/fixtures";
-import { group, preview } from "@/test/queries";
+import type { ChatMessage, ChatTurn } from "@/lib/chat/api";
+import type { NdaDocument, NdaValues } from "@/lib/nda/types";
+import { filledValues, realTemplate } from "@/test/fixtures";
+import { preview } from "@/test/queries";
 import { NdaCreator } from "./NdaCreator";
 
 // The real Word export is covered by toDocx.test.ts and the end-to-end tests.
 const toDocx = vi.hoisted(() => vi.fn<(nda: NdaDocument) => Promise<Blob>>());
 vi.mock("@/lib/nda/toDocx", () => ({ toDocx }));
+
+// The AI is faked: each test scripts what it answers.
+const sendChat = vi.hoisted(() => vi.fn<(messages: ChatMessage[], values: NdaValues) => Promise<ChatTurn>>());
+vi.mock("@/lib/chat/api", () => ({ sendChat }));
 
 const { createObjectURL, revokeObjectURL } = URL;
 
@@ -43,52 +48,52 @@ function setup() {
 
 beforeEach(() => {
   toDocx.mockReset();
+  sendChat.mockReset();
 });
+
+/** Sends a chat message and waits for the AI's scripted reply to appear. */
+async function chat(user: ReturnType<typeof userEvent.setup>, text: string, turn: ChatTurn) {
+  sendChat.mockResolvedValueOnce(turn);
+  await user.type(screen.getByLabelText("Your message"), text);
+  await user.keyboard("{Enter}");
+  await screen.findByText(turn.reply);
+}
 
 afterEach(() => {
   Object.assign(URL, { createObjectURL, revokeObjectURL });
 });
 
 describe("NdaCreator", () => {
-  it("defaults the effective date to today in the user's timezone", async () => {
+  it("defaults the effective date to today in the user's timezone and sends it to the AI", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     // 23:30 local (Los Angeles) is already October 29 in UTC.
     vi.setSystemTime(new Date(2026, 9, 28, 23, 30));
-    setup();
-    await waitFor(() => expect(screen.getByLabelText("Effective Date")).toHaveValue("2026-10-28"));
-    expect(preview().getByText("October 28, 2026")).toBeInTheDocument();
-  });
-
-  it("does not overwrite a date the user has already chosen", async () => {
     const user = setup();
-    const date = screen.getByLabelText("Effective Date");
-    await waitFor(() => expect(date).not.toHaveValue(""));
-    await user.clear(date);
-    // Clearing is allowed: the default is only applied once, on first load.
-    expect(date).toHaveValue("");
-    expect(preview().getByText("[Effective Date]")).toBeInTheDocument();
+    expect(await preview().findByText("October 28, 2026")).toBeInTheDocument();
+
+    await chat(user, "Hello", { reply: "Hi there!", values: filledValues });
+    expect(sendChat.mock.calls[0][1].effectiveDate).toBe("2026-10-28");
   });
 
-  it("updates the preview as the user types", async () => {
+  it("fills in the preview from the AI's answers", async () => {
     const user = setup();
     expect(preview().getByText("Governing Law: [Governing Law]")).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText(/^Governing Law/), "Delaware");
-    expect(preview().getByText("Governing Law: Delaware")).toBeInTheDocument();
+    await chat(user, "Acme and Globex, Delaware law, 2 years.", { reply: "Noted! Who signs?", values: filledValues });
 
-    await user.type(group("Party 1").getByLabelText("Company"), "Acme Inc.");
+    expect(preview().getByText("Governing Law: Delaware")).toBeInTheDocument();
+    expect(preview().getByText("Expires 2 years from Effective Date.")).toBeInTheDocument();
     expect(preview().getByRole("cell", { name: "Acme Inc." })).toBeInTheDocument();
+    expect(preview().getByText("November 1, 2026")).toBeInTheDocument();
   });
 
-  it("updates the preview when the terms change", async () => {
+  it("sends the latest values with each message", async () => {
     const user = setup();
-    const years = screen.getByLabelText("MNDA term in years");
-    await user.clear(years);
-    await user.type(years, "3");
-    expect(preview().getByText("Expires 3 years from Effective Date.")).toBeInTheDocument();
+    await chat(user, "First", { reply: "One", values: filledValues });
+    await chat(user, "Second", { reply: "Two", values: { ...filledValues, governingLaw: "Texas" } });
 
-    await user.click(screen.getByLabelText("In perpetuity"));
-    expect(preview().getByText("In perpetuity.")).toBeInTheDocument();
+    expect(sendChat.mock.calls[1][1]).toEqual(filledValues);
+    expect(preview().getByText("Governing Law: Texas")).toBeInTheDocument();
   });
 
   it("opens the print dialog for Download PDF", async () => {
@@ -104,8 +109,9 @@ describe("NdaCreator", () => {
     toDocx.mockResolvedValue(blob);
     const user = setup();
 
-    await user.type(group("Party 1").getByLabelText("Company"), "Acme");
-    await user.type(group("Party 2").getByLabelText("Company"), "Globex");
+    const [one, two] = filledValues.parties;
+    const parties: NdaValues["parties"] = [{ ...one, company: "Acme" }, { ...two, company: "Globex" }];
+    await chat(user, "Acme and Globex", { reply: "Great.", values: { ...filledValues, parties } });
     await user.click(screen.getByRole("button", { name: "Download Word" }));
 
     await waitFor(() => expect(stubs.downloads).toEqual([{ name: "Mutual-NDA-Acme-Globex.docx", href: "blob:mock-url" }]));

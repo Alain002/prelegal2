@@ -4,7 +4,13 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 BACKEND_DIR = Path(__file__).resolve().parent.parent
+
+# Local development reads secrets such as OPENROUTER_API_KEY from the repository's .env.
+# In Docker they arrive as real environment variables, which take precedence.
+load_dotenv(BACKEND_DIR.parent / ".env", override=False)
 
 
 @dataclass(frozen=True)
