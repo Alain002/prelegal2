@@ -57,6 +57,8 @@ Available as Tailwind classes such as `bg-brand-purple` and `text-brand-navy` (d
 
 ## Implementation status
 
+Everything up to KAN-8 is merged into `main` (KAN-5 PR #4, KAN-6 PR #5, KAN-7 PR #6, KAN-8 PR #7). Each ticket is built on a branch named after it, e.g. `KAN-8-all-documents`, and merged locally with `--no-ff`.
+
 - **KAN-4:** Common Paper templates in `templates/` plus `catalog.json`.
 - **KAN-5:** Mutual NDA creator (Next.js 16, React 19, Tailwind 4). It had a form (replaced by the AI chat in KAN-7), a live preview, and PDF (print) and Word (`docx`) downloads. Templates are read from `../templates` at build time (`frontend/src/lib/nda/loadTemplate.ts`).
 - **KAN-6:** V1 foundation.
@@ -96,4 +98,5 @@ Available as Tailwind classes such as `bg-brand-purple` and `text-brand-navy` (d
   - Frontend: `cd frontend && npm run test:all` (lint, tsc, Vitest, Playwright).
   - Playwright runs against the FastAPI-served build. To test the container, run `PW_REUSE=1 E2E_PORT=8000 npm run test:e2e`.
   - Details are in `frontend/TESTING.md`.
+- **Open items:** the manual test plan in `frontend/TESTING.md` (M0 to M18) hasn't been run for KAN-8, especially opening the Word files in Microsoft Word. Drafts and chats are lost on reload.
 - **Next:** real sign up and sign in using the `users` table, then saving drafts and conversations per user.
