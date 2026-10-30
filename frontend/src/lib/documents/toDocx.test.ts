@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
+import { DISCLAIMER, DISCLAIMER_HEADING, DISCLAIMER_SHORT } from "@/lib/disclaimer";
 import { documentInfo, documents, pilotDraft } from "@/test/fixtures";
 import { buildDocument } from "./buildDocument";
 import { documentToDocx } from "./toDocx";
@@ -46,5 +47,17 @@ describe("documentToDocx", () => {
   it.each(documents.filter((d) => d.terms).map((d) => d.id))("builds a Word file for %s", async (id) => {
     const { blob } = await generate(id, { documentId: id, fields: {} });
     expect(blob.size).toBeGreaterThan(5000);
+  });
+
+  it("marks the document as a draft subject to legal review, on every page", async () => {
+    const { zip, xml } = await generate();
+    const body = textOf(xml);
+    expect(body.indexOf(DISCLAIMER_HEADING.toUpperCase())).toBeLessThan(body.indexOf("Cover Page"));
+    expect(body).toContain(DISCLAIMER);
+    // Both sections (cover page and Standard Terms) use the footer.
+    expect(xml.match(/<w:footerReference /g)).toHaveLength(2);
+    const footers = Object.keys(zip.files).filter((name) => /^word\/footer\d+\.xml$/.test(name));
+    expect(footers.length).toBeGreaterThan(0);
+    for (const name of footers) expect(textOf(await zip.file(name)!.async("string"))).toContain(DISCLAIMER_SHORT);
   });
 });

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { errorMessage } from "@/lib/api";
 import type { Draft } from "@/lib/documents/types";
 import { sendChat, type ChatMessage } from "./api";
 
@@ -11,12 +12,19 @@ export const MAX_HISTORY = 40;
 export const GREETING =
   "Hi! I can help you draft a legal agreement, such as a Mutual NDA, a Cloud Service Agreement or a Pilot Agreement. What would you like to create, and who is it between?";
 
+export const START: ChatMessage[] = [{ role: "assistant", content: GREETING }];
+
 /**
- * The conversation with the AI. It lives only in the browser: each turn sends the whole
- * conversation and the current draft, and applies the draft the AI sends back.
+ * The conversation with the AI. The browser holds it: each turn sends the conversation and the
+ * current draft, then hands the AI's draft and the whole conversation to `onTurn` (which applies
+ * and saves them). `initialMessages` resumes a saved conversation.
  */
-export function useChat(draft: Draft, onDraft: (draft: Draft) => void) {
-  const [messages, setMessages] = useState<ChatMessage[]>([{ role: "assistant", content: GREETING }]);
+export function useChat(
+  draft: Draft,
+  onTurn: (draft: Draft, messages: ChatMessage[]) => void,
+  initialMessages: ChatMessage[] = START,
+) {
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,10 +33,11 @@ export function useChat(draft: Draft, onDraft: (draft: Draft) => void) {
     setError(null);
     try {
       const turn = await sendChat(history.slice(-MAX_HISTORY), draft);
-      setMessages([...history, { role: "assistant", content: turn.reply }]);
-      onDraft(turn.draft);
+      const next: ChatMessage[] = [...history, { role: "assistant", content: turn.reply }];
+      setMessages(next);
+      onTurn(turn.draft, next);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(e));
     } finally {
       setPending(false);
     }

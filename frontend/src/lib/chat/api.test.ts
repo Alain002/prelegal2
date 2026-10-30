@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { pilotDraft } from "@/test/fixtures";
-import { GENERIC_ERROR, sendChat, type ChatMessage } from "./api";
+import { GENERIC_ERROR } from "@/lib/api";
+import { sendChat, type ChatMessage } from "./api";
 
 const messages: ChatMessage[] = [
   { role: "assistant", content: "Hi!" },

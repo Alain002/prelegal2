@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.main import create_app
+from tests.factories import sign_up
 
 
 @pytest.fixture
@@ -31,3 +32,10 @@ def client(settings: Settings) -> Iterator[TestClient]:
     # Entering the client runs the app's startup, which creates the database.
     with TestClient(create_app(settings)) as c:
         yield c
+
+
+@pytest.fixture
+def signed_in(client: TestClient) -> TestClient:
+    """`client`, signed in as a new user (ada@acme.test)."""
+    sign_up(client)
+    return client

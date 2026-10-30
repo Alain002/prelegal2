@@ -1,84 +1,73 @@
 /**
- * FAKE session for the V1 foundation: there is no authentication yet. Signing in only
- * remembers the email in localStorage. This module is the only code that knows how the
- * session is stored, so real sign in can replace it later behind the same functions.
+ * Who is signed in. The backend keeps the session in an httpOnly cookie that scripts can't read,
+ * so this module asks GET /api/auth/me and remembers the answer for the components that show it.
+ * It is the only code that talks to the /api/auth endpoints.
  */
+
+import { api, setUnauthorizedHandler } from "./api";
 
 export type Session = { email: string };
 
-export const SESSION_KEY = "prelegal.session";
+type SessionResponse = { user: Session | null };
 
+// undefined until the backend has answered.
+let current: Session | null | undefined;
+// Counts changes, so an answer to an older question can't undo a newer sign-in or sign-out.
+let version = 0;
+let refreshing: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 
-function readRaw(): string | null {
-  try {
-    return localStorage.getItem(SESSION_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function parse(raw: string | null): Session | null {
-  if (!raw) return null;
-  try {
-    const value: unknown = JSON.parse(raw);
-    if (value && typeof value === "object" && "email" in value && typeof value.email === "string" && value.email) {
-      return { email: value.email };
-    }
-  } catch {
-    // Corrupt value: treat as signed out.
-  }
-  return null;
-}
-
-// useSyncExternalStore needs the same object back until the stored value changes.
-let cachedRaw: string | null = null;
-let cached: Session | null = null;
-
-/** The signed-in session, or null when signed out. Browser only. */
-export function getSession(): Session | null {
-  const raw = readRaw();
-  if (raw !== cachedRaw) {
-    cachedRaw = raw;
-    cached = parse(raw);
-  }
-  return cached;
-}
-
-function notify() {
+function set(session: Session | null) {
+  current = session;
+  version++;
   listeners.forEach((listener) => listener());
 }
 
-/** Signs in with any email. There is no password check yet. */
-export function signIn(email: string): Session {
-  const session = { email: email.trim() };
-  try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-  } catch {
-    // Storage unavailable (e.g. blocked): the user simply stays signed out.
-  }
-  notify();
-  return session;
+/** The signed-in session: null when signed out, undefined while still asking. */
+export function getSession(): Session | null | undefined {
+  return current;
 }
 
-export function signOut(): void {
-  try {
-    localStorage.removeItem(SESSION_KEY);
-  } catch {
-    // Nothing stored.
-  }
-  notify();
-}
-
-/** Calls `listener` whenever the session changes, in this tab or another one. */
 export function subscribe(listener: () => void): () => void {
   listeners.add(listener);
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === SESSION_KEY || event.key === null) listener();
-  };
-  window.addEventListener("storage", onStorage);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("storage", onStorage);
-  };
+  return () => listeners.delete(listener);
 }
+
+/** Asks the backend who is signed in. Calls made while one is in flight share it. */
+export function refreshSession(): Promise<void> {
+  if (!refreshing) {
+    const asked = version;
+    const answer = (session: Session | null) => {
+      if (version === asked) set(session);
+    };
+    refreshing = api<SessionResponse>("/api/auth/me")
+      .then(({ user }) => answer(user), () => answer(current ?? null))
+      .finally(() => (refreshing = null));
+  }
+  return refreshing;
+}
+
+const authenticate = (path: string) => async (email: string, password: string): Promise<Session> => {
+  const { user } = await api<SessionResponse>(path, { method: "POST", body: { email, password } });
+  set(user);
+  return user!;
+};
+
+/** Signs in, or throws an ApiError whose message says why not. */
+export const signIn = authenticate("/api/auth/signin");
+
+/** Creates an account and signs in, or throws an ApiError whose message says why not. */
+export const signUp = authenticate("/api/auth/signup");
+
+/** Signs out. The user is signed out here even if the backend can't be reached. */
+export async function signOut(): Promise<void> {
+  try {
+    await api("/api/auth/signout", { method: "POST" });
+  } catch {
+    // The session dies with the cookie or the server anyway.
+  }
+  set(null);
+}
+
+// Any other API call answering 401 means the session has ended: show the sign-in page.
+setUnauthorizedHandler(() => set(null));

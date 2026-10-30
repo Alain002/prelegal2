@@ -17,13 +17,13 @@ beforeEach(() => sendChat.mockReset());
 const emptyDraft: Draft = { documentId: null, fields: {} };
 
 function setup(draft: Draft = emptyDraft) {
-  const onDraft = vi.fn();
+  const onTurn = vi.fn();
   render(
     <StrictMode>
-      <Chat draft={draft} onDraft={onDraft} />
+      <Chat draft={draft} onTurn={onTurn} />
     </StrictMode>,
   );
-  return { user: userEvent.setup(), onDraft, input: screen.getByLabelText("Your message") };
+  return { user: userEvent.setup(), onTurn, input: screen.getByLabelText("Your message") };
 }
 
 const log = () => within(screen.getByRole("log", { name: "Conversation" }));
@@ -45,7 +45,7 @@ describe("Chat", () => {
 
   it("sends the message with the conversation so far and shows the reply", async () => {
     sendChat.mockResolvedValueOnce({ reply: "Who signs for Acme?", draft: pilotDraft });
-    const { user, input, onDraft } = setup();
+    const { user, input, onTurn } = setup();
 
     await user.type(input, "Acme and Globex.");
     await user.click(screen.getByRole("button", { name: "Send" }));
@@ -61,7 +61,27 @@ describe("Chat", () => {
       ],
       emptyDraft,
     );
-    expect(onDraft).toHaveBeenCalledWith(pilotDraft);
+    // The whole conversation goes with the new draft, so it can be saved.
+    expect(onTurn).toHaveBeenCalledWith(pilotDraft, [
+      { role: "assistant", content: GREETING },
+      { role: "user", content: "Acme and Globex." },
+      { role: "assistant", content: "Who signs for Acme?" },
+    ]);
+  });
+
+  it("resumes a saved conversation", async () => {
+    const saved: ChatMessage[] = [
+      { role: "assistant", content: GREETING },
+      { role: "user", content: "A pilot for Acme." },
+      { role: "assistant", content: "Who is the customer?" },
+    ];
+    sendChat.mockResolvedValueOnce({ reply: "Noted.", draft: pilotDraft });
+    render(<Chat draft={pilotDraft} onTurn={vi.fn()} initialMessages={saved} />);
+
+    expect(log().getByText("Who is the customer?")).toBeInTheDocument();
+    await userEvent.setup().type(screen.getByLabelText("Your message"), "Globex.{Enter}");
+    await log().findByText("Noted.");
+    expect(sendChat).toHaveBeenCalledWith([...saved, { role: "user", content: "Globex." }], pilotDraft);
   });
 
   it("labels who said what for screen readers", async () => {
@@ -113,11 +133,11 @@ describe("Chat", () => {
 
   it("shows an error, and Try again resends without repeating the message", async () => {
     sendChat.mockRejectedValueOnce(new Error("The AI assistant is unavailable right now. Please try again."));
-    const { user, input, onDraft } = setup();
+    const { user, input, onTurn } = setup();
 
     await user.type(input, "Acme and Globex.{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent("The AI assistant is unavailable right now.");
-    expect(onDraft).not.toHaveBeenCalled();
+    expect(onTurn).not.toHaveBeenCalled();
 
     sendChat.mockResolvedValueOnce({ reply: "Who signs for Acme?", draft: pilotDraft });
     await user.click(screen.getByRole("button", { name: "Try again" }));
@@ -126,7 +146,7 @@ describe("Chat", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     expect(log().getAllByText("Acme and Globex.")).toHaveLength(1);
     expect(sendChat.mock.calls[1][0]).toEqual(sendChat.mock.calls[0][0]);
-    expect(onDraft).toHaveBeenCalledWith(pilotDraft);
+    expect(onTurn).toHaveBeenCalledWith(pilotDraft, expect.any(Array));
   });
 
   it("sends only the latest messages in a long conversation", async () => {

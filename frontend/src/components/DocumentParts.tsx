@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { DISCLAIMER, DISCLAIMER_HEADING } from "@/lib/disclaimer";
 import type { CoverPage } from "@/lib/documents/types";
 import type { CoverField, Inline, SignatureRow } from "@/lib/nda/types";
 
@@ -82,6 +83,12 @@ export function AgreementPage({ doc, children }: { doc: CoverPage; children: Rea
   return (
     <article className="mx-auto max-w-[8.5in] bg-white px-10 py-12 font-serif text-[15px] leading-relaxed text-neutral-900 shadow-sm ring-1 ring-neutral-200 print:max-w-none print:p-0 print:shadow-none print:ring-0">
       <h1 className="mb-6 text-center text-2xl font-bold">{doc.title}</h1>
+
+      {/* Printed too: the PDF carries the notice. (Every printed page also gets a footer: globals.css.) */}
+      <aside aria-label="Draft notice" className="mb-8 border border-neutral-500 px-4 py-3 font-sans text-sm">
+        <p className="font-bold uppercase tracking-wide">{DISCLAIMER_HEADING}</p>
+        <p className="mt-1">{DISCLAIMER}</p>
+      </aside>
 
       <section>
         <h2 className="mb-3 text-lg font-bold uppercase tracking-wide">Cover Page</h2>

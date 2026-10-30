@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
-import AxeBuilder from "@axe-core/playwright";
 import JSZip from "jszip";
 import type { Page } from "@playwright/test";
 import {
   AGREEMENT,
   chatPanel,
+  axeViolations,
   conversation,
   expect,
   fakeAi,
@@ -181,12 +181,12 @@ test.describe("drafting an agreement", () => {
     });
 
     await say(page, "Hello");
-    await expect(page.getByRole("status")).toHaveText("Assistant is typing…");
+    await expect(chatPanel(page).getByRole("status")).toHaveText("Assistant is typing…");
     await expect(page.getByRole("button", { name: "Send" })).toBeDisabled();
 
     answer();
     await expect(conversation(page).getByText("Done.")).toBeVisible();
-    await expect(page.getByRole("status")).toHaveCount(0);
+    await expect(chatPanel(page).getByRole("status")).toHaveCount(0);
   });
 
   test("downloads a complete NDA as a Word document", async ({ page }) => {
@@ -246,17 +246,13 @@ test.describe("drafting an agreement", () => {
 
   test("has no detectable accessibility violations @mobile", async ({ page }) => {
     await openApp(page);
-    const scan = async () => {
-      const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
-      return results.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(" ")).join(", ")})`);
-    };
-    expect(await scan(), "new conversation").toEqual([]);
+    expect(await axeViolations(page), "new conversation").toEqual([]);
 
     await fakeAi(page, { reply: "An NDA.", draft: AGREEMENT.draft }, { reply: "A pilot.", draft: PILOT.draft });
     await say(page, "An NDA", "An NDA.");
-    expect(await scan(), "the NDA").toEqual([]);
+    expect(await axeViolations(page), "the NDA").toEqual([]);
     await say(page, "A pilot", "A pilot.");
-    expect(await scan(), "a generated document").toEqual([]);
+    expect(await axeViolations(page), "a generated document").toEqual([]);
   });
 
   test("moves through the controls in order with the Tab key, and Enter sends", async ({ page }) => {
@@ -266,7 +262,13 @@ test.describe("drafting an agreement", () => {
     // until there is a document, so they are skipped.
     await page.locator("body").focus();
 
-    for (const control of [page.getByRole("button", { name: "Sign out" }), messageBox(page)]) {
+    for (const control of [
+      page.getByRole("link", { name: "Prelegal", exact: true }),
+      page.getByRole("link", { name: "New document" }),
+      page.getByRole("link", { name: "My documents" }),
+      page.getByRole("button", { name: "Sign out" }),
+      messageBox(page),
+    ]) {
       await page.keyboard.press("Tab");
       await expect(control).toBeFocused();
     }

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { DraftCreator } from "@/components/DraftCreator";
+import { Suspense } from "react";
+import { DraftWorkspace } from "@/components/DraftWorkspace";
+import { Loading } from "@/components/ui";
 import { loadDocuments } from "@/lib/documents/loadDocuments";
 import { loadNdaTemplate } from "@/lib/nda/loadTemplate";
 
@@ -16,13 +18,16 @@ export default function DraftPage() {
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 print:p-0">
       <header className="mb-8 print:hidden">
-        <h1 className="text-3xl font-bold text-brand-navy">Draft an agreement</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-brand-navy">Draft an agreement</h1>
         <p className="mt-2 max-w-2xl text-neutral-600">
           Tell the AI assistant what you need. It picks the right Common Paper agreement, asks about the details
           and fills it in as you answer.
         </p>
       </header>
-      <DraftCreator documents={documents} ndaTemplate={ndaTemplate} />
+      {/* Reading ?id= needs a Suspense boundary in a statically exported page. */}
+      <Suspense fallback={<Loading />}>
+        <DraftWorkspace documents={documents} ndaTemplate={ndaTemplate} />
+      </Suspense>
     </main>
   );
 }
